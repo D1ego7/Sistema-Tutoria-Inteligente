@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<title>Tutor Inteligente - Lectura</title>
+<link rel="stylesheet" href="styles.css">
+</head>
+
+<body>
+<div id="app-header"></div>
+
+<main class="main-content reading-grid">
+    <div class="reading-column">
+        <button id="back-btn" class="back-button">← Volver al dashboard</button>
+
+        <div class="reading-card">
+            <div class="reading-hero">
+                <div class="reading-emoji">📖</div>
+                <div>
+                    <h2 id="text-title"></h2>
+                </div>
+            </div>
+            <div id="text-body" class="reading-body"></div>
+        </div>
+    </div>
+
+    <aside class="questions-panel">
+        <div class="question-card">
+            <h3>Preguntas de comprensión</h3>
+            <div id="questions-list"></div>
+            <button id="submit-answers">Enviar respuestas</button>
+        </div>
+    </aside>
+</main>
+
+<script src="header.js"></script>
+<script src="reading.js"></script>
+
+</body>
+</html>

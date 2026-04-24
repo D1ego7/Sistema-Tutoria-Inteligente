@@ -108,7 +108,7 @@ def get_db_cursor():
         tuple (conn, cursor)
     """
     conn = get_db_connection()
-    cursor = conn.cursor(dictionary=True)
+    cursor = conn.cursor()
     return conn, cursor
 
 

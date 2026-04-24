@@ -1,5 +1,6 @@
 from flask import Flask, jsonify, request
 from flask_jwt_extended import JWTManager, create_access_token, jwt_required, get_jwt_identity
+from flask import send_from_directory
 from config import get_db_connection
 from services.tutoring import (
     calcular_puntuacion_estudiante, 
@@ -21,9 +22,63 @@ app = Flask(__name__)
 app.config['JWT_SECRET_KEY'] = os.getenv('JWT_SECRET_KEY', 'tu_clave_secreta_aqui')
 jwt = JWTManager(app)
 
-@app.route('/')
-def hello():
-    return '¡Hola! Tu aplicación Flask con MariaDB está funcionando.'
+@app.route("/")
+def index():
+    return send_from_directory("frontend/login", "login.html")
+
+@app.route("/styles.css")
+def styles():
+    return send_from_directory("frontend/common", "styles_general.css")
+
+@app.route("/login.js")
+def login_js():
+    return send_from_directory("frontend/login", "login.js")
+
+@app.route("/dashboard.html")
+def dashboard():
+    return send_from_directory("frontend/menu", "menu.html")
+
+@app.route("/menu.html")
+def menu_html():
+    return send_from_directory("frontend/menu", "menu.html")
+
+@app.route("/dashboard.js")
+def dashboard_js():
+    return send_from_directory("frontend/menu", "menu.js")
+
+@app.route("/reading.html")
+def reading():
+    return send_from_directory("frontend/reading", "reading.html")
+
+@app.route("/reading.js")
+def reading_js():
+    return send_from_directory("frontend/reading", "reading.js")
+
+@app.route("/header.js")
+def header_js():
+    return send_from_directory("frontend/common", "header.js")
+
+@app.route("/header.html")
+def header_html():
+    return send_from_directory("frontend/common", "header.html")
+
+@app.route("/texto/<int:id_texto>", methods=['GET'])
+@jwt_required()
+def obtener_texto(id_texto):
+    """Obtiene un texto específico (requiere autenticación)"""
+    try:
+        conn, cursor = get_db_cursor()
+        cursor.execute("SELECT id_texto, titulo, contenido, nivel FROM textos WHERE id_texto = %s", (id_texto,))
+        texto = cursor.fetchone()
+        cursor.close()
+        conn.close()
+        
+        if not texto:
+            return jsonify({"error": "Texto no encontrado"}), 404
+        
+        return jsonify(texto), 200
+    except Exception as e:
+        return jsonify({"error": f"Error al obtener texto: {str(e)}"}), 500
 
 @app.route("/textos")
 @jwt_required()
@@ -97,11 +152,19 @@ def login():
         conn.close()
 
         if user:
-            # Acceder a los datos como diccionario
-            if bcrypt.checkpw(password.encode('utf-8'), user['contraseña'].encode('utf-8')):
-                access_token = create_access_token(identity={'id': user['id_usuario'], 'nombre': user['nombre'], 'rol': user['id_rol']})
+            stored_password = user['contraseña']
+            password_bytes = password.encode('utf-8')
+            try:
+                password_matches = bcrypt.checkpw(password_bytes, stored_password.encode('utf-8'))
+            except ValueError:
+                # Si la contraseña en la base de datos no está hasheada,
+                # comparamos directamente el texto.
+                password_matches = password == stored_password
+
+            if password_matches:
+                access_token = create_access_token(identity=str(user['id_usuario']))
                 return jsonify({"access_token": access_token, "user": {"id": user['id_usuario'], "nombre": user['nombre'], "rol": user['id_rol']}}), 200
-        
+
         return jsonify({"error": "Credenciales inválidas"}), 401
     except Exception as e:
         return jsonify({"error": str(e)}), 500
