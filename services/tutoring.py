@@ -1,9 +1,3 @@
-"""
-Módulo de Tutoría Inteligente
-Contiene la lógica para adaptación de dificultad, evaluación de desempeño
-y generación de recomendaciones personalizadas
-"""
-
 from config import get_db_connection
 import unicodedata
 

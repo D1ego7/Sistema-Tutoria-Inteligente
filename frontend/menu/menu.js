@@ -1,6 +1,3 @@
-// dashboard.js
-const STORAGE_KEY = "tutor_progress";
-
 document.addEventListener("DOMContentLoaded", function() {
     const token = localStorage.getItem("token");
     const user = JSON.parse(localStorage.getItem("user") || "{}");
@@ -28,36 +25,29 @@ document.addEventListener("DOMContentLoaded", function() {
     }
 });
 
-function loadProgress() {
-    const progress = JSON.parse(localStorage.getItem(STORAGE_KEY) || JSON.stringify({ correct: 0, total: 0, level: "literal" }));
-    displayProgress(progress);
-}
+async function loadProgress() {
+    const token = localStorage.getItem("token");
+    const userId = getUserId();
 
-function displayProgress(progress) {
-    const pct = progress.total === 0 ? 0 : Math.round((progress.correct / progress.total) * 100);
-    document.getElementById("level-badge").textContent = capitalize(progress.level);
-    document.getElementById("score-text").textContent = `${progress.correct} / ${progress.total} · ${pct}%`;
-    document.getElementById("progress-bar").style.width = `${pct}%`;
-    document.getElementById("recommendation").textContent = getRecommendation(progress, pct);
-}
+    try {
+        const res = await fetch(`http://127.0.0.1:5000/progreso`, {
+            headers: {
+                "Authorization": `Bearer ${token}`
+            }
+        });
 
-function getRecommendation(progress, pct) {
-    if (progress.total < 2) {
-        return "Responde una lectura para ver tu recomendación.";
+        if (res.status === 401) {
+            localStorage.removeItem("token");
+            window.location.href = "/";
+            return;
+        }
+
+        const data = await res.json();
+        displayProgressFromBackend(data);
+
+    } catch (err) {
+        console.error("Error cargando progreso:", err);
     }
-    if (pct >= 80 && progress.level === "literal") {
-        return "¡Estás listo para subir al nivel inferencial! 🚀";
-    }
-    if (pct >= 80 && progress.level === "inferencial") {
-        return "¡Bienvenido al nivel crítico! Sigue así. 🌟";
-    }
-    if (pct < 50 && progress.level === "critico") {
-        return "Puedes repasar un nivel anterior para fortalecer tu comprensión.";
-    }
-    if (pct < 50 && progress.level === "inferencial") {
-        return "Practica un nivel más fácil para ganar confianza.";
-    }
-    return "Sigue respondiendo para mejorar tu progreso.";
 }
 
 function capitalize(text) {
@@ -92,16 +82,24 @@ function displayTexts(texts) {
 
     texts.forEach(text => {
         const badgeLabel = getLevelLabel(text.nivel);
+        const emoji = getEmojiForText(text.titulo);
+        const readingTime = calculateReadingTime(text.contenido);
+        
         const card = document.createElement("div");
         card.className = "text-card";
         card.innerHTML = `
             <div class="text-card-top">
-                <div class="text-emoji">📖</div>
+                <div class="text-emoji">${emoji}</div>
                 <span class="badge badge-${text.nivel}">${badgeLabel}</span>
             </div>
             <h3>${text.titulo}</h3>
-            <p class="text-muted">Nivel: ${capitalize(text.nivel)}</p>
-            <button onclick="selectText(${text.id_texto})">Leer y responder</button>
+            <div class="text-meta">
+                <span class="meta-item">
+                    <span class="meta-icon">⏱️</span>
+                    <span>${readingTime} min</span>
+                </span>
+            </div>
+            <button class="btn-read" onclick="selectText(${text.id_texto})">Leer y responder →</button>
         `;
         container.appendChild(card);
     });
@@ -116,4 +114,79 @@ function getLevelLabel(level) {
 
 function selectText(id) {
     window.location.href = `reading.html?id=${id}`;
+}
+
+function getUserId() {
+    const user = JSON.parse(localStorage.getItem("user") || "{}");
+    return user.id;
+}
+
+function displayProgressFromBackend(data) {
+    if (!data || !data.evaluacion) {
+        console.error("Datos inválidos:", data);
+        return;
+    }
+
+    const evaluacion = data.evaluacion;
+
+    const correct = evaluacion.respuestas_correctas || 0;
+    const total = evaluacion.total_respuestas || 0;
+    const pct = total === 0 ? 0 : Math.round((correct / total) * 100);
+
+    // Nivel
+    const nivel = data.recomendacion_siguiente?.nuevo_nivel || "literal";
+    document.getElementById("level-badge").textContent = formatNivel(nivel);
+
+    // Aciertos
+    document.getElementById("score-text").textContent =
+        `${correct} / ${total} · ${pct}%`;
+
+    // Barra
+    document.getElementById("progress-bar").style.width = `${pct}%`;
+
+    // Recomendación
+    document.getElementById("recommendation").textContent =
+        data.recomendacion_siguiente?.razon || "Sigue respondiendo para mejorar.";
+}
+
+function formatNivel(nivel) {
+    if (nivel === "literal") return "Literal";
+    if (nivel === "inferencial") return "Inferencial";
+    if (nivel === "crítico") return "Crítico";
+    if (nivel === "metacognitivo") return "Metacognitivo";
+    return nivel;
+}
+
+// Función para calcular tiempo de lectura estimado (palabras / 200)
+function calculateReadingTime(content) {
+    if (!content) return 3;
+    const wordCount = content.trim().split(/\s+/).length;
+    const minutes = Math.ceil(wordCount / 200);
+    return Math.max(1, Math.min(minutes, 15)); // Entre 1 y 15 minutos
+}
+
+// Función para asignar emojis según el título del texto
+function getEmojiForText(titulo) {
+    const emojiMap = {
+        "zorro": "🦊",
+        "león": "🦁",
+        "ratón": "🐭",
+        "uva": "🦊",
+        "aventura": "🚣",
+        "río": "🚣",
+        "árbol": "🌳",
+        "sombra": "🌳",
+        "dato": "📚",
+        "leído": "📖",
+        "fábula": "📖"
+    };
+    
+    const titulo_lower = titulo.toLowerCase();
+    for (let key in emojiMap) {
+        if (titulo_lower.includes(key)) {
+            return emojiMap[key];
+        }
+    }
+    
+    return "📖"; // Emoji por defecto
 }

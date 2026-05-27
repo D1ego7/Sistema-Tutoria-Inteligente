@@ -442,7 +442,7 @@ def verificar_respuesta(id_pregunta):
 @app.route('/respuestas-texto/<int:id_texto>', methods=['GET'])
 @jwt_required()
 def obtener_respuestas_por_texto(id_texto):
-    """Obtiene las respuestas del estudiante para un texto específico"""
+    """Obtiene las respuestas más recientes del estudiante para un texto específico"""
     try:
         id_usuario = int(get_jwt_identity())
 
@@ -459,13 +459,13 @@ def obtener_respuestas_por_texto(id_texto):
 
         id_estudiante = estudiante['id_estudiante']
 
-        # Obtener respuestas del estudiante para las preguntas de este texto
+        # Obtener las respuestas más recientes para cada pregunta de este texto
         query = """
-            SELECT re.id_respuesta_est, re.id_pregunta, re.respuesta, re.es_correcta, p.enunciado
+            SELECT re.id_respuesta_est, re.id_pregunta, re.respuesta, re.es_correcta, p.enunciado, re.fecha
             FROM respuestas_estudiante re
             JOIN preguntas p ON re.id_pregunta = p.id_pregunta
             WHERE re.id_estudiante = %s AND p.id_texto = %s
-            ORDER BY re.fecha DESC
+            ORDER BY re.id_pregunta, re.fecha DESC
         """
 
         cursor.execute(query, (id_estudiante, id_texto))
@@ -476,13 +476,13 @@ def obtener_respuestas_por_texto(id_texto):
         if not respuestas:
             return jsonify([]), 200
 
-        # Convertir a dict con id_pregunta como clave para búsqueda rápida
+        # Obtener solo la más reciente por pregunta
         resultado = {}
         todas_correctas = True
 
         for r in respuestas:
             id_pregunta = r['id_pregunta']
-            if id_pregunta not in resultado:  # Guardar solo la más reciente
+            if id_pregunta not in resultado:  # Primera (más reciente) para esta pregunta
                 resultado[id_pregunta] = {
                     "respuesta": r['respuesta'],
                     "es_correcta": bool(r['es_correcta']),
