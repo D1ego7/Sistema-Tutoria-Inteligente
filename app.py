@@ -1,5 +1,5 @@
 from flask import Flask, jsonify, request
-from flask_jwt_extended import JWTManager, create_access_token, jwt_required, get_jwt_identity
+from flask_jwt_extended import JWTManager, create_access_token, jwt_required, get_jwt_identity, get_jwt
 from flask import send_from_directory
 from config import get_db_connection
 from services.tutoring import (
@@ -30,6 +30,22 @@ def index():
 def styles():
     return send_from_directory("frontend/common", "styles_general.css")
 
+@app.route("/login.css")
+def login_css():
+    return send_from_directory("frontend/login", "login.css")
+
+@app.route("/menu.css")
+def menu_css():
+    return send_from_directory("frontend/menu", "menu.css")
+
+@app.route("/reading.css")
+def reading_css():
+    return send_from_directory("frontend/reading", "reading.css")
+
+@app.route("/header.css")
+def header_css():
+    return send_from_directory("frontend/common", "header.css")
+
 @app.route("/login.js")
 def login_js():
     return send_from_directory("frontend/login", "login.js")
@@ -44,6 +60,10 @@ def menu_html():
 
 @app.route("/dashboard.js")
 def dashboard_js():
+    return send_from_directory("frontend/menu", "menu.js")
+
+@app.route("/menu.js")
+def menu_js():
     return send_from_directory("frontend/menu", "menu.js")
 
 @app.route("/reading.html")
@@ -127,9 +147,20 @@ def register():
 
         cursor.execute("INSERT INTO usuarios (nombre, email, contraseña, id_rol, fecha_registro) VALUES (%s, %s, %s, %s, CURDATE())",
                        (nombre, email, hashed_password.decode('utf-8'), id_rol))
-        conn.commit()
+        
         user_id = cursor.lastrowid
+        if int(id_rol) == 1:
+            cursor.execute(
+                "INSERT INTO estudiantes (id_usuario, nivel_actual) VALUES (%s, %s)",
+                (user_id, "literal")
+            )
+        elif int(id_rol) == 2:
+            cursor.execute(
+                "INSERT INTO docentes (id_usuario) VALUES (%s)",
+                (user_id,)
+            )
         cursor.close()
+        conn.commit()
         conn.close()
         return jsonify({"message": "Usuario registrado exitosamente", "id_usuario": user_id}), 201
     except Exception as e:
@@ -162,7 +193,7 @@ def login():
                 password_matches = password == stored_password
 
             if password_matches:
-                access_token = create_access_token(identity=str(user['id_usuario']))
+                access_token = create_access_token(identity=str(user['id_usuario']),additional_claims={"rol": user["id_rol"],"nombre": user["nombre"]})
                 return jsonify({"access_token": access_token, "user": {"id": user['id_usuario'], "nombre": user['nombre'], "rol": user['id_rol']}}), 200
 
         return jsonify({"error": "Credenciales inválidas"}), 401
@@ -510,8 +541,8 @@ def responder_con_feedback():
     }
     """
     try:
-        current_user = get_jwt_identity()
-        id_usuario = current_user['id']
+        id_usuario = int(get_jwt_identity())
+        claims = get_jwt()
         data = request.get_json()
         
         id_pregunta = data.get('id_pregunta')
@@ -597,7 +628,16 @@ def responder_con_feedback():
             "recomendacion": recomendacion,
             "total_respuestas": total_respuestas
         }
-        
+
+        # Incluir progreso actualizado para mostrar en tiempo real
+        if total_respuestas > 0:
+            evaluacion = calcular_puntuacion_estudiante(id_estudiante)
+            resultado["progreso_actualizado"] = {
+                "total_respuestas": evaluacion.get('total_respuestas', 0),
+                "respuestas_correctas": evaluacion.get('respuestas_correctas', 0),
+                "porcentaje_acierto": evaluacion.get('porcentaje_acierto', 0)
+            }
+
         return jsonify(resultado), 201
     except Exception as e:
         return jsonify({"error": str(e)}), 500
@@ -671,46 +711,101 @@ def realizar_diagnostico():
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
-@app.route('/progreso/<int:id_estudiante>', methods=['GET'])
+@app.route('/progreso-estudiante', methods=['GET'])
 @jwt_required()
-def obtener_progreso(id_estudiante):
-    """Obtiene resumen del progreso del estudiante"""
+def obtener_progreso_estudiante():
+    """Obtiene progreso simplificado del estudiante para sesiones de lectura"""
     try:
-        current_user = get_jwt_identity()
-        id_rol = current_user.get('rol')
-        
-        if id_estudiante <= 0:
-            return jsonify({"error": "ID de estudiante inválido"}), 400
-        
-        # Validar permisos
-        if id_rol == 1:  # Estudiante
-            conn, cursor = get_db_cursor()
-            cursor.execute("SELECT id_estudiante FROM estudiantes WHERE id_usuario = %s", (current_user['id'],))
-            estudiante_actual = cursor.fetchone()
+        id_usuario = int(get_jwt_identity())
+        conn, cursor = get_db_cursor()
+
+        cursor.execute("SELECT id_estudiante FROM estudiantes WHERE id_usuario = %s", (id_usuario,))
+        estudiante = cursor.fetchone()
+
+        if not estudiante:
             cursor.close()
             conn.close()
-            if not estudiante_actual or estudiante_actual['id_estudiante'] != id_estudiante:
-                return jsonify({"error": "No tienes permisos para ver el progreso de otro estudiante"}), 403
-        
+            return jsonify({"error": "El usuario no es estudiante"}), 400
+
+        id_estudiante = estudiante['id_estudiante']
+
+        # Obtener estadísticas de desempeño
+        evaluacion = calcular_puntuacion_estudiante(id_estudiante)
+
+        # Obtener nivel actual
+        cursor.execute("""
+            SELECT nivel_actual FROM progreso WHERE id_estudiante = %s LIMIT 1
+        """, (id_estudiante,))
+        progreso = cursor.fetchone()
+
+        if not progreso:
+            cursor.execute("SELECT nivel_asignado FROM diagnostico WHERE id_estudiante = %s ORDER BY fecha DESC LIMIT 1", (id_estudiante,))
+            diagnostico = cursor.fetchone()
+            nivel_actual = diagnostico['nivel_asignado'] if diagnostico else 'literal'
+        else:
+            nivel_actual = progreso['nivel_actual']
+
+        cursor.close()
+        conn.close()
+
+        return jsonify({
+            "nivel_actual": nivel_actual,
+            "total_respuestas_historial": evaluacion.get('total_respuestas', 0),
+            "respuestas_correctas_historial": evaluacion.get('respuestas_correctas', 0),
+            "porcentaje_acierto_general": evaluacion.get('porcentaje_acierto', 0),
+            "tendencia": evaluacion.get('tendencia', 'sin_datos'),
+            "por_nivel": evaluacion.get('por_nivel', {})
+        }), 200
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+@app.route('/progreso', methods=['GET'])
+@jwt_required()
+def obtener_progreso():
+    """Obtiene resumen del progreso del estudiante (usuario logeado)"""
+    try:
+        # Obtener id_usuario desde el JWT (es string → convertir a int)
+        id_usuario = int(get_jwt_identity())
+
+        # Obtener id_estudiante desde la BD
+        conn, cursor = get_db_cursor()
+        cursor.execute(
+            "SELECT id_estudiante FROM estudiantes WHERE id_usuario = %s",
+            (id_usuario,)
+        )
+        estudiante = cursor.fetchone()
+
+        if not estudiante:
+            cursor.close()
+            conn.close()
+            return jsonify({"error": "El usuario no es estudiante"}), 400
+
+        id_estudiante = estudiante['id_estudiante']
+
+        # 🔹 Calcular datos del sistema inteligente
         evaluacion = calcular_puntuacion_estudiante(id_estudiante)
         patrones = detectar_patrones_error(id_estudiante, 10)
         recomendacion = recomendar_nivel_siguiente(id_estudiante)
-        
-        conn, cursor = get_db_cursor()
-        cursor.execute("""SELECT nivel_asignado, puntaje, fecha 
-                         FROM diagnostico 
-                         WHERE id_estudiante = %s 
-                         ORDER BY fecha DESC LIMIT 1""", (id_estudiante,))
+
+        # 🔹 Obtener diagnóstico inicial
+        cursor.execute("""
+            SELECT nivel_asignado, puntaje, fecha
+            FROM diagnostico
+            WHERE id_estudiante = %s
+            ORDER BY fecha DESC
+            LIMIT 1
+        """, (id_estudiante,))
         diagnostico = cursor.fetchone()
+
         cursor.close()
         conn.close()
-        
+
         diagnostico_info = {
-            'nivel_inicial': diagnostico['nivel_asignado'],
-            'puntaje_inicial': diagnostico['puntaje'],
-            'fecha': str(diagnostico['fecha'])
+            "nivel_inicial": diagnostico['nivel_asignado'],
+            "puntaje_inicial": diagnostico['puntaje'],
+            "fecha": str(diagnostico['fecha'])
         } if diagnostico else None
-        
+
         return jsonify({
             "id_estudiante": id_estudiante,
             "evaluacion": evaluacion,
@@ -718,6 +813,7 @@ def obtener_progreso(id_estudiante):
             "patrones_error": patrones,
             "recomendacion_siguiente": recomendacion
         }), 200
+
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 

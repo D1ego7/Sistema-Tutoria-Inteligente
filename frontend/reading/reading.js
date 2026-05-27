@@ -15,6 +15,16 @@ document.addEventListener("DOMContentLoaded", function () {
         userGreeting.textContent = `Hola, ${user.nombre || 'Estudiante'}`;
     }
 
+    // Variables para rastrear el progreso de la sesión
+    let sessionProgress = {
+        answered: 0,
+        correct: 0,
+        total: 0
+    };
+
+    // Cargar progreso histórico
+    loadProgressHistoric();
+
     loadText(textId);
     loadQuestions(textId);
 
@@ -36,6 +46,7 @@ document.addEventListener("DOMContentLoaded", function () {
         const inputs = document.querySelectorAll(".question-card input");
 
         let enviadas = 0;
+        let correctas = 0;
 
         for (let input of inputs) {
             const respuesta = input.value.trim();
@@ -58,43 +69,117 @@ document.addEventListener("DOMContentLoaded", function () {
                 });
 
                 const data = await res.json();
-                console.log("Respuesta guardada:", data);
 
+                if (!res.ok) {
+                    console.error("Error del servidor:", data);
+                    showToast(data.error || "No se pudo guardar la respuesta", false);
+                    continue;
+                }
+
+                console.log("Respuesta guardada:", data);
                 enviadas++;
+                if (data.es_correcta) correctas++;
+
+                // Mostrar toast con resultado de cada respuesta
+                const mensaje = data.es_correcta ? "✓ Correcto" : "✗ Incorrecto";
+                showToast(mensaje, data.es_correcta);
+
+                // Actualizar progreso de sesión
+                if (data.progreso_actualizado) {
+                    sessionProgress = {
+                        answered: enviadas,
+                        correct: correctas,
+                        total: data.progreso_actualizado.total_respuestas || 0
+                    };
+                }
 
             } catch (err) {
                 console.error("Error enviando respuesta:", err);
+                showToast("Error al guardar respuesta", false);
             }
         }
 
         if (enviadas === 0) {
-            alert("Por favor responde al menos una pregunta.");
+            showToast("Por favor responde al menos una pregunta", false);
             return;
         }
 
-        alert("Respuestas enviadas correctamente 🎉");
-        window.location.href = "menu.html";
+        // Mostrar modal con resumen de sesión
+        showSummaryModal(enviadas, correctas);
     });
 });
 
-/* function saveProgress(answerCount) {
-    const key = "tutor_progress";
-    const stored = JSON.parse(localStorage.getItem(key) || "null");
-    const progress = stored || { correct: 0, total: 0, level: "literal" };
-    progress.total += answerCount;
-    progress.level = computeLevel(progress);
-    localStorage.setItem(key, JSON.stringify(progress));
+function showToast(mensaje, isSuccess = true) {
+    const toast = document.createElement("div");
+    toast.className = `toast ${isSuccess ? 'success' : 'error'}`;
+    toast.textContent = mensaje;
+    document.body.appendChild(toast);
+
+    setTimeout(() => {
+        toast.style.animation = "slideOut 0.3s ease";
+        setTimeout(() => toast.remove(), 300);
+    }, 2500);
 }
 
-function computeLevel(progress) {
-    const pct = progress.total === 0 ? 0 : Math.round((progress.correct / progress.total) * 100);
-    if (progress.total < 3) return "literal";
-    if (pct >= 80 && progress.level === "literal") return "inferencial";
-    if (pct >= 80 && progress.level === "inferencial") return "critico";
-    if (pct < 50 && progress.level === "critico") return "inferencial";
-    if (pct < 50 && progress.level === "inferencial") return "literal";
-    return progress.level;
-} */
+function showSummaryModal(answered, correct) {
+    const percentage = answered > 0 ? Math.round((correct / answered) * 100) : 0;
+
+    document.getElementById("summary-answered").textContent = answered;
+    document.getElementById("summary-correct").textContent = correct;
+    document.getElementById("summary-percentage").textContent = percentage + "%";
+
+    // Si hay recomendación de nivel, mostrarla
+    const recommendationBox = document.getElementById("recommendation-box");
+    if (answered >= 5) {
+        if (percentage >= 80) {
+            recommendationBox.style.display = "block";
+            document.getElementById("recommendation-text").textContent = "¡Excelente desempeño! Estás listo para el siguiente nivel.";
+        } else if (percentage < 50) {
+            recommendationBox.style.display = "block";
+            document.getElementById("recommendation-text").textContent = "Necesitas practicar más en este nivel antes de avanzar.";
+        } else {
+            recommendationBox.style.display = "none";
+        }
+    } else {
+        recommendationBox.style.display = "none";
+    }
+
+    document.getElementById("summary-modal").style.display = "flex";
+
+    // Configurar botones
+    document.getElementById("btn-continue-dashboard").addEventListener("click", function () {
+        window.location.href = "menu.html";
+    });
+
+    document.getElementById("btn-continue-reading").addEventListener("click", function () {
+        window.location.href = "menu.html";
+    });
+}
+
+async function loadProgressHistoric() {
+    const token = localStorage.getItem("token");
+    try {
+        const res = await fetch("http://127.0.0.1:5000/progreso-estudiante", {
+            headers: { "Authorization": `Bearer ${token}` }
+        });
+
+        if (!res.ok) {
+            console.error("Error cargando progreso");
+            return;
+        }
+
+        const progress = await res.json();
+
+        // Mostrar card de progreso
+        document.getElementById("progress-card").style.display = "block";
+        document.getElementById("nivel-actual").textContent = progress.nivel_actual || "-";
+        document.getElementById("porcentaje-acierto").textContent = progress.porcentaje_acierto_general.toFixed(1) + "%";
+        document.getElementById("total-respuestas").textContent = progress.total_respuestas_historial;
+
+    } catch (err) {
+        console.error("Error cargando progreso histórico:", err);
+    }
+}
 
 async function loadText(id) {
     const token = localStorage.getItem("token");

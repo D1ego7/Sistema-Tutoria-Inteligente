@@ -3,7 +3,9 @@
 <head>
 <meta charset="UTF-8">
 <title>Tutor Inteligente - Lectura</title>
-<link rel="stylesheet" href="styles.css">
+<link rel="stylesheet" href="/styles.css">
+<link rel="stylesheet" href="/header.css">
+<link rel="stylesheet" href="/reading.css">
 </head>
 
 <body>
@@ -25,13 +27,53 @@
     </div>
 
     <aside class="questions-panel">
-        <div class="question-card">
+        <div class="questions-sidebar-card">
+            <div id="progress-card" class="progress-card" style="display: none;">
+                <h4>📊 Tu Progreso</h4>
+                <div class="progress-stats">
+                    <p><strong>Nivel Actual:</strong> <span id="nivel-actual">-</span></p>
+                    <p><strong>Desempeño:</strong> <span id="porcentaje-acierto">0%</span></p>
+                    <p><strong>Total Respuestas:</strong> <span id="total-respuestas">0</span></p>
+                </div>
+            </div>
             <h3>Preguntas de comprensión</h3>
             <div id="questions-list"></div>
             <button id="submit-answers">Enviar respuestas</button>
         </div>
     </aside>
 </main>
+
+<!-- Modal de resumen de sesión -->
+<div id="summary-modal" class="modal" style="display: none;">
+    <div class="modal-content">
+        <div class="modal-header">
+            <h2>🎉 ¡Sesión Completada!</h2>
+        </div>
+        <div class="modal-body">
+            <div class="session-summary">
+                <div class="summary-stat">
+                    <p class="stat-label">Preguntas Respondidas</p>
+                    <p class="stat-value" id="summary-answered">0</p>
+                </div>
+                <div class="summary-stat">
+                    <p class="stat-label">Respuestas Correctas</p>
+                    <p class="stat-value" id="summary-correct">0</p>
+                </div>
+                <div class="summary-stat">
+                    <p class="stat-label">Porcentaje</p>
+                    <p class="stat-value" id="summary-percentage">0%</p>
+                </div>
+            </div>
+            <div id="recommendation-box" class="recommendation-box" style="display: none;">
+                <p id="recommendation-text"></p>
+            </div>
+        </div>
+        <div class="modal-footer">
+            <button id="btn-continue-dashboard" class="btn-primary">Volver al Dashboard</button>
+            <button id="btn-continue-reading" class="btn-secondary">Otra Lectura</button>
+        </div>
+    </div>
+</div>
 
 <script src="header.js"></script>
 <script src="reading.js"></script>
