@@ -185,6 +185,11 @@ async function loadPreviousAnswers(textId) {
 
         // Esperar a que los inputs estén listos
         setTimeout(() => {
+            // Contar respuestas correctas e incorrectas
+            let totalRespuestas = Object.keys(respuestas).length;
+            let respuestasCorrectas = 0;
+            let respuestasIncorrectas = 0;
+
             // Prellenar inputs
             for (const idPregunta in respuestas) {
                 const input = document.getElementById(`q-${idPregunta}`);
@@ -196,17 +201,19 @@ async function loadPreviousAnswers(textId) {
                         input.style.borderColor = "#10b981";
                         input.style.color = "#065f46";
                         input.disabled = true;
+                        respuestasCorrectas++;
                     } else {
                         // Dejar vacío si es incorrecta
                         input.value = "";
                         input.style.backgroundColor = "#ffffff";
                         input.style.borderColor = "#d1d5db";
+                        respuestasIncorrectas++;
                     }
                 }
             }
 
             // Si todas son correctas, deshabilitar todo y ocultar botones
-            if (todasCorrectas && Object.keys(respuestas).length > 0) {
+            if (todasCorrectas && totalRespuestas > 0) {
                 const inputs = document.querySelectorAll(".question-card input");
                 inputs.forEach(input => {
                     input.disabled = true;
@@ -215,10 +222,10 @@ async function loadPreviousAnswers(textId) {
                     input.style.color = "#065f46";
                     input.style.cursor = "not-allowed";
                 });
-                // Ocultar ambos botones
+                // Ocultar botones
                 document.getElementById("submit-answers").style.display = "none";
-            } else if (Object.keys(respuestas).length > 0) {
-                // Si hay respuestas previas pero no todas correctas, mostrar "Volver a intentar"
+            } else if (respuestasIncorrectas > 0) {
+                // Solo mostrar "Volver a intentar" si hay respuestas incorrectas
                 showRetryButton();
             }
         }, 500);
@@ -264,13 +271,13 @@ function showRetryButton() {
 
     retryBtn.addEventListener("click", function () {
         // Limpiar todos los inputs incorrectos (que no estén en verde)
+        // Estos generalmente estarán vacíos, pero nos aseguramos de limpiarlos
         const inputs = document.querySelectorAll(".question-card input");
         inputs.forEach(input => {
-            // Si no está correcto, limpiar y permitir edición
-            if (input.style.backgroundColor !== "#d1fae5") {
+            // Si no está deshabilitado (no es respuesta correcta), limpiar y permitir edición
+            if (!input.disabled) {
                 input.value = "";
                 input.style.borderColor = "#d1d5db";
-                input.disabled = false;
             }
         });
         // Mostrar botón de enviar de nuevo y ocultar retry
