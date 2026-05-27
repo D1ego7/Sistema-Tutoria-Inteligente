@@ -17,7 +17,7 @@ document.addEventListener("DOMContentLoaded", function () {
 
     loadText(textId);
     loadQuestions(textId);
-    checkIfCompletedReading(textId);
+    loadPreviousAnswers(textId);
 
     const logoutBtn = document.getElementById("logout-btn");
     if (logoutBtn) {
@@ -45,6 +45,7 @@ document.addEventListener("DOMContentLoaded", function () {
                 input.style.borderColor = "#ef4444";
                 break;
             }
+            input.style.borderColor = "#d1d5db";
         }
 
         if (!allAnswered) {
@@ -95,9 +96,6 @@ document.addEventListener("DOMContentLoaded", function () {
             }
         }
 
-        // Marcar lectura como completada
-        markReadingAsCompleted(textId);
-
         // Mostrar modal con resumen de sesión
         showSummaryModal(enviadas, correctas, textId);
     });
@@ -146,29 +144,87 @@ function showSummaryModal(answered, correct, textId) {
     });
 
     document.getElementById("btn-retry-reading").addEventListener("click", function () {
-        location.reload();
+        // Limpiar inputs y permitir reintentar
+        document.getElementById("summary-modal").style.display = "none";
+        const inputs = document.querySelectorAll(".question-card input");
+        inputs.forEach(input => {
+            input.value = "";
+            input.style.borderColor = "#d1d5db";
+        });
     });
 }
 
-function markReadingAsCompleted(textId) {
-    let completedReadings = JSON.parse(localStorage.getItem("completedReadings") || "[]");
-    if (!completedReadings.includes(textId)) {
-        completedReadings.push(textId);
-        localStorage.setItem("completedReadings", JSON.stringify(completedReadings));
+async function loadPreviousAnswers(textId) {
+    const token = localStorage.getItem("token");
+    try {
+        const res = await fetch(`http://127.0.0.1:5000/respuestas-texto/${textId}`, {
+            headers: { "Authorization": `Bearer ${token}` }
+        });
+
+        if (!res.ok) {
+            console.log("No hay respuestas previas");
+            return;
+        }
+
+        const data = await res.json();
+        const respuestas = data.respuestas || {};
+        const todasCorrectas = data.todas_correctas || false;
+
+        // Esperar a que los inputs estén listos
+        setTimeout(() => {
+            // Prellenar inputs con respuestas previas
+            for (const idPregunta in respuestas) {
+                const input = document.getElementById(`q-${idPregunta}`);
+                if (input) {
+                    input.value = respuestas[idPregunta].respuesta;
+                }
+            }
+
+            // Si todas son correctas, deshabilitar inputs y ocultar botón
+            if (todasCorrectas && Object.keys(respuestas).length > 0) {
+                const inputs = document.querySelectorAll(".question-card input");
+                inputs.forEach(input => {
+                    input.disabled = true;
+                    input.style.backgroundColor = "#f3f4f6";
+                    input.style.cursor = "not-allowed";
+                });
+                document.getElementById("submit-answers").style.display = "none";
+            } else if (Object.keys(respuestas).length > 0) {
+                // Si hay incorrectas, mostrar botón "Volver a intentar" en lugar de "Enviar"
+                showRetryButton();
+            }
+        }, 500);
+
+    } catch (err) {
+        console.error("Error cargando respuestas previas:", err);
     }
 }
 
-function checkIfCompletedReading(textId) {
-    const completedReadings = JSON.parse(localStorage.getItem("completedReadings") || "[]");
-    if (completedReadings.includes(textId)) {
+function showRetryButton() {
+    const submitBtn = document.getElementById("submit-answers");
+    if (document.getElementById("retry-button")) {
+        return; // Ya existe el botón
+    }
+
+    const retryBtn = document.createElement("button");
+    retryBtn.id = "retry-button";
+    retryBtn.textContent = "Volver a intentar";
+    retryBtn.className = submitBtn.className;
+    retryBtn.style.marginTop = "0.5rem";
+    retryBtn.addEventListener("click", function () {
+        // Limpiar todos los inputs
         const inputs = document.querySelectorAll(".question-card input");
         inputs.forEach(input => {
-            input.disabled = true;
-            input.style.backgroundColor = "#f3f4f6";
-            input.style.cursor = "not-allowed";
+            input.value = "";
+            input.style.borderColor = "#d1d5db";
         });
-        document.getElementById("submit-answers").style.display = "none";
-    }
+        // Mostrar botón de enviar de nuevo
+        submitBtn.style.display = "block";
+        retryBtn.style.display = "none";
+    });
+
+    submitBtn.parentElement.appendChild(retryBtn);
+    submitBtn.style.display = "none";
 }
 
 async function loadText(id) {

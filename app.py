@@ -439,6 +439,65 @@ def verificar_respuesta(id_pregunta):
     except Exception as e:
         return jsonify({"error": f"Error al verificar respuesta: {str(e)}"}), 500
 
+@app.route('/respuestas-texto/<int:id_texto>', methods=['GET'])
+@jwt_required()
+def obtener_respuestas_por_texto(id_texto):
+    """Obtiene las respuestas del estudiante para un texto específico"""
+    try:
+        id_usuario = int(get_jwt_identity())
+
+        conn, cursor = get_db_cursor()
+
+        # Obtener id_estudiante
+        cursor.execute("SELECT id_estudiante FROM estudiantes WHERE id_usuario = %s", (id_usuario,))
+        estudiante = cursor.fetchone()
+
+        if not estudiante:
+            cursor.close()
+            conn.close()
+            return jsonify({"error": "Estudiante no encontrado"}), 404
+
+        id_estudiante = estudiante['id_estudiante']
+
+        # Obtener respuestas del estudiante para las preguntas de este texto
+        query = """
+            SELECT re.id_respuesta_est, re.id_pregunta, re.respuesta, re.es_correcta, p.enunciado
+            FROM respuestas_estudiante re
+            JOIN preguntas p ON re.id_pregunta = p.id_pregunta
+            WHERE re.id_estudiante = %s AND p.id_texto = %s
+            ORDER BY re.fecha DESC
+        """
+
+        cursor.execute(query, (id_estudiante, id_texto))
+        respuestas = cursor.fetchall()
+        cursor.close()
+        conn.close()
+
+        if not respuestas:
+            return jsonify([]), 200
+
+        # Convertir a dict con id_pregunta como clave para búsqueda rápida
+        resultado = {}
+        todas_correctas = True
+
+        for r in respuestas:
+            id_pregunta = r['id_pregunta']
+            if id_pregunta not in resultado:  # Guardar solo la más reciente
+                resultado[id_pregunta] = {
+                    "respuesta": r['respuesta'],
+                    "es_correcta": bool(r['es_correcta']),
+                    "enunciado": r['enunciado']
+                }
+                if not r['es_correcta']:
+                    todas_correctas = False
+
+        return jsonify({
+            "respuestas": resultado,
+            "todas_correctas": todas_correctas
+        }), 200
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
 # ===========================================
 # MÓDULO: TUTOR INTELIGENTE
 # ===========================================
