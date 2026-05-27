@@ -28,14 +28,6 @@
 
     <aside class="questions-panel">
         <div class="questions-sidebar-card">
-            <div id="progress-card" class="progress-card" style="display: none;">
-                <h4>📊 Tu Progreso</h4>
-                <div class="progress-stats">
-                    <p><strong>Nivel Actual:</strong> <span id="nivel-actual">-</span></p>
-                    <p><strong>Desempeño:</strong> <span id="porcentaje-acierto">0%</span></p>
-                    <p><strong>Total Respuestas:</strong> <span id="total-respuestas">0</span></p>
-                </div>
-            </div>
             <h3>Preguntas de comprensión</h3>
             <div id="questions-list"></div>
             <button id="submit-answers">Enviar respuestas</button>
@@ -69,8 +61,8 @@
             </div>
         </div>
         <div class="modal-footer">
+            <button id="btn-retry-reading" class="btn-secondary">Volver a intentar</button>
             <button id="btn-continue-dashboard" class="btn-primary">Volver al Dashboard</button>
-            <button id="btn-continue-reading" class="btn-secondary">Otra Lectura</button>
         </div>
     </div>
 </div>

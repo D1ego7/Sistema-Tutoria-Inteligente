@@ -15,18 +15,9 @@ document.addEventListener("DOMContentLoaded", function () {
         userGreeting.textContent = `Hola, ${user.nombre || 'Estudiante'}`;
     }
 
-    // Variables para rastrear el progreso de la sesión
-    let sessionProgress = {
-        answered: 0,
-        correct: 0,
-        total: 0
-    };
-
-    // Cargar progreso histórico
-    loadProgressHistoric();
-
     loadText(textId);
     loadQuestions(textId);
+    checkIfCompletedReading(textId);
 
     const logoutBtn = document.getElementById("logout-btn");
     if (logoutBtn) {
@@ -45,14 +36,28 @@ document.addEventListener("DOMContentLoaded", function () {
         const token = localStorage.getItem("token");
         const inputs = document.querySelectorAll(".question-card input");
 
+        // Validar que todas las preguntas sean respondidas
+        let allAnswered = true;
+        for (let input of inputs) {
+            const respuesta = input.value.trim();
+            if (!respuesta) {
+                allAnswered = false;
+                input.style.borderColor = "#ef4444";
+                break;
+            }
+        }
+
+        if (!allAnswered) {
+            showToast("Debes responder todas las preguntas", false);
+            return;
+        }
+
         let enviadas = 0;
         let correctas = 0;
 
         for (let input of inputs) {
             const respuesta = input.value.trim();
             const id_pregunta = input.id.replace("q-", "");
-
-            if (!respuesta) continue;
 
             try {
                 const res = await fetch("http://127.0.0.1:5000/respuesta-con-feedback", {
@@ -84,28 +89,17 @@ document.addEventListener("DOMContentLoaded", function () {
                 const mensaje = data.es_correcta ? "✓ Correcto" : "✗ Incorrecto";
                 showToast(mensaje, data.es_correcta);
 
-                // Actualizar progreso de sesión
-                if (data.progreso_actualizado) {
-                    sessionProgress = {
-                        answered: enviadas,
-                        correct: correctas,
-                        total: data.progreso_actualizado.total_respuestas || 0
-                    };
-                }
-
             } catch (err) {
                 console.error("Error enviando respuesta:", err);
                 showToast("Error al guardar respuesta", false);
             }
         }
 
-        if (enviadas === 0) {
-            showToast("Por favor responde al menos una pregunta", false);
-            return;
-        }
+        // Marcar lectura como completada
+        markReadingAsCompleted(textId);
 
         // Mostrar modal con resumen de sesión
-        showSummaryModal(enviadas, correctas);
+        showSummaryModal(enviadas, correctas, textId);
     });
 });
 
@@ -121,7 +115,7 @@ function showToast(mensaje, isSuccess = true) {
     }, 2500);
 }
 
-function showSummaryModal(answered, correct) {
+function showSummaryModal(answered, correct, textId) {
     const percentage = answered > 0 ? Math.round((correct / answered) * 100) : 0;
 
     document.getElementById("summary-answered").textContent = answered;
@@ -151,33 +145,29 @@ function showSummaryModal(answered, correct) {
         window.location.href = "menu.html";
     });
 
-    document.getElementById("btn-continue-reading").addEventListener("click", function () {
-        window.location.href = "menu.html";
+    document.getElementById("btn-retry-reading").addEventListener("click", function () {
+        location.reload();
     });
 }
 
-async function loadProgressHistoric() {
-    const token = localStorage.getItem("token");
-    try {
-        const res = await fetch("http://127.0.0.1:5000/progreso-estudiante", {
-            headers: { "Authorization": `Bearer ${token}` }
+function markReadingAsCompleted(textId) {
+    let completedReadings = JSON.parse(localStorage.getItem("completedReadings") || "[]");
+    if (!completedReadings.includes(textId)) {
+        completedReadings.push(textId);
+        localStorage.setItem("completedReadings", JSON.stringify(completedReadings));
+    }
+}
+
+function checkIfCompletedReading(textId) {
+    const completedReadings = JSON.parse(localStorage.getItem("completedReadings") || "[]");
+    if (completedReadings.includes(textId)) {
+        const inputs = document.querySelectorAll(".question-card input");
+        inputs.forEach(input => {
+            input.disabled = true;
+            input.style.backgroundColor = "#f3f4f6";
+            input.style.cursor = "not-allowed";
         });
-
-        if (!res.ok) {
-            console.error("Error cargando progreso");
-            return;
-        }
-
-        const progress = await res.json();
-
-        // Mostrar card de progreso
-        document.getElementById("progress-card").style.display = "block";
-        document.getElementById("nivel-actual").textContent = progress.nivel_actual || "-";
-        document.getElementById("porcentaje-acierto").textContent = progress.porcentaje_acierto_general.toFixed(1) + "%";
-        document.getElementById("total-respuestas").textContent = progress.total_respuestas_historial;
-
-    } catch (err) {
-        console.error("Error cargando progreso histórico:", err);
+        document.getElementById("submit-answers").style.display = "none";
     }
 }
 

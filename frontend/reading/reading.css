@@ -172,26 +172,6 @@
     margin-top: 0.5rem;
 }
 
-/* Progress Card */
-.progress-card {
-    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-    color: white;
-    padding: 1.25rem;
-    border-radius: 1rem;
-    margin-bottom: 1.5rem;
-}
-
-.progress-card h4 {
-    margin: 0 0 1rem;
-    font-size: 1rem;
-}
-
-.progress-stats p {
-    margin: 0.5rem 0;
-    font-size: 0.9rem;
-    line-height: 1.4;
-}
-
 /* Modal Styles */
 .modal {
     position: fixed;
