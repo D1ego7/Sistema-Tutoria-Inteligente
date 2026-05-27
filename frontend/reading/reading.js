@@ -139,11 +139,11 @@ function showSummaryModal(answered, correct, textId) {
     document.getElementById("summary-modal").style.display = "flex";
 
     // Configurar botones
-    document.getElementById("btn-continue-dashboard").addEventListener("click", function () {
+    document.getElementById("btn-continue-dashboard").onclick = function () {
         window.location.href = "menu.html";
-    });
+    };
 
-    document.getElementById("btn-retry-reading").addEventListener("click", function () {
+    document.getElementById("btn-retry-reading").onclick = function () {
         // Limpiar inputs incorrectos y permitir reintentar
         document.getElementById("summary-modal").style.display = "none";
         const inputs = document.querySelectorAll(".question-card input");
@@ -152,14 +152,19 @@ function showSummaryModal(answered, correct, textId) {
             if (input.style.backgroundColor !== "#d1fae5") {
                 input.value = "";
                 input.style.borderColor = "#d1d5db";
+                input.disabled = false;
             }
         });
         // Mostrar botones
         const submitBtn = document.getElementById("submit-answers");
-        const retryContainer = document.querySelector("div[style*='display: flex']");
-        if (submitBtn) submitBtn.style.display = "block";
-        if (retryContainer) retryContainer.style.display = "none";
-    });
+        const buttonContainer = document.getElementById("button-container");
+        if (submitBtn && submitBtn.style.display === "none") {
+            submitBtn.style.display = "block";
+        }
+        if (buttonContainer) {
+            buttonContainer.style.display = "none";
+        }
+    };
 }
 
 async function loadPreviousAnswers(textId) {
@@ -180,12 +185,12 @@ async function loadPreviousAnswers(textId) {
 
         // Esperar a que los inputs estén listos
         setTimeout(() => {
-            // Prellenar inputs solo con respuestas CORRECTAS
+            // Prellenar inputs
             for (const idPregunta in respuestas) {
                 const input = document.getElementById(`q-${idPregunta}`);
                 if (input) {
                     if (respuestas[idPregunta].es_correcta) {
-                        // Guardar y sombrear en verde
+                        // Guardar respuestas CORRECTAS en verde
                         input.value = respuestas[idPregunta].respuesta;
                         input.style.backgroundColor = "#d1fae5";
                         input.style.borderColor = "#10b981";
@@ -230,6 +235,7 @@ function showRetryButton() {
     }
 
     const container = document.createElement("div");
+    container.id = "button-container";
     container.style.display = "flex";
     container.style.gap = "1rem";
     container.style.marginTop = "1.5rem";
@@ -267,18 +273,88 @@ function showRetryButton() {
                 input.disabled = false;
             }
         });
-        // Mostrar botón de enviar de nuevo
+        // Mostrar botón de enviar de nuevo y ocultar retry
         submitBtn.style.display = "block";
         container.style.display = "none";
     });
 
     const submitBtnClone = submitBtn.cloneNode(true);
-    submitBtnClone.id = "submit-answers-retry";
+    submitBtnClone.id = "submit-answers-copy";
     submitBtnClone.style.flex = "1";
+    submitBtnClone.style.background = "linear-gradient(135deg, #667eea 0%, #764ba2 100%)";
+    submitBtnClone.addEventListener("click", async function () {
+        const token = localStorage.getItem("token");
+        const inputs = document.querySelectorAll(".question-card input");
+
+        // Validar que todas las preguntas sean respondidas
+        let allAnswered = true;
+        for (let input of inputs) {
+            const respuesta = input.value.trim();
+            if (!respuesta) {
+                allAnswered = false;
+                input.style.borderColor = "#ef4444";
+                break;
+            }
+            input.style.borderColor = "#d1d5db";
+        }
+
+        if (!allAnswered) {
+            showToast("Debes responder todas las preguntas", false);
+            return;
+        }
+
+        let enviadas = 0;
+        let correctas = 0;
+
+        for (let input of inputs) {
+            const respuesta = input.value.trim();
+            const id_pregunta = input.id.replace("q-", "");
+
+            try {
+                const res = await fetch("http://127.0.0.1:5000/respuesta-con-feedback", {
+                    method: "POST",
+                    headers: {
+                        "Content-Type": "application/json",
+                        "Authorization": `Bearer ${token}`
+                    },
+                    body: JSON.stringify({
+                        id_pregunta: parseInt(id_pregunta),
+                        respuesta: respuesta,
+                        tiempo_respuesta: 10
+                    })
+                });
+
+                const data = await res.json();
+
+                if (!res.ok) {
+                    console.error("Error del servidor:", data);
+                    showToast(data.error || "No se pudo guardar la respuesta", false);
+                    continue;
+                }
+
+                console.log("Respuesta guardada:", data);
+                enviadas++;
+                if (data.es_correcta) correctas++;
+
+                // Mostrar toast con resultado de cada respuesta
+                const mensaje = data.es_correcta ? "✓ Correcto" : "✗ Incorrecto";
+                showToast(mensaje, data.es_correcta);
+
+            } catch (err) {
+                console.error("Error enviando respuesta:", err);
+                showToast("Error al guardar respuesta", false);
+            }
+        }
+
+        // Mostrar modal con resumen de sesión
+        const textId = new URLSearchParams(window.location.search).get('id');
+        showSummaryModal(enviadas, correctas, textId);
+    });
 
     container.appendChild(retryBtn);
     container.appendChild(submitBtnClone);
-    submitBtn.parentElement.replaceChild(container, submitBtn);
+    submitBtn.parentElement.appendChild(container);
+    submitBtn.style.display = "none";
 }
 
 async function loadText(id) {
