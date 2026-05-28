@@ -465,7 +465,13 @@ def obtener_respuestas_por_texto(id_texto):
             FROM respuestas_estudiante re
             JOIN preguntas p ON re.id_pregunta = p.id_pregunta
             WHERE re.id_estudiante = %s AND p.id_texto = %s
-            ORDER BY re.fecha DESC
+            AND re.id_respuesta_est = (
+                SELECT MAX(id_respuesta_est)
+                FROM respuestas_estudiante r2
+                WHERE r2.id_estudiante = re.id_estudiante
+                AND r2.id_pregunta = re.id_pregunta
+            )
+            ORDER BY re.id_pregunta
         """
 
         cursor.execute(query, (id_estudiante, id_texto))
