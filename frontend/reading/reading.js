@@ -190,39 +190,32 @@ async function loadPreviousAnswers(textId) {
             let respuestasCorrectas = 0;
             let respuestasIncorrectas = 0;
 
-            // Prellenar inputs
+            // Prellenar inputs con las respuestas
             for (const idPregunta in respuestas) {
                 const input = document.getElementById(`q-${idPregunta}`);
                 if (input) {
+                    input.value = respuestas[idPregunta].respuesta;
+
                     if (respuestas[idPregunta].es_correcta) {
-                        // Guardar respuestas CORRECTAS en verde
-                        input.value = respuestas[idPregunta].respuesta;
+                        // CORRECTAS en verde
                         input.style.backgroundColor = "#d1fae5";
                         input.style.borderColor = "#10b981";
                         input.style.color = "#065f46";
                         input.disabled = true;
                         respuestasCorrectas++;
                     } else {
-                        // Dejar vacío si es incorrecta
-                        input.value = "";
+                        // INCORRECTAS con estilos normales
                         input.style.backgroundColor = "#ffffff";
                         input.style.borderColor = "#d1d5db";
+                        input.style.color = "#000000";
+                        input.disabled = false;
                         respuestasIncorrectas++;
                     }
                 }
             }
 
-            // Si todas son correctas, deshabilitar todo y ocultar botones
+            // Si todas son correctas, aplicar estilos a todos y ocultar botones
             if (todasCorrectas && totalRespuestas > 0) {
-                const inputs = document.querySelectorAll(".question-card input");
-                inputs.forEach(input => {
-                    input.disabled = true;
-                    input.style.backgroundColor = "#d1fae5";
-                    input.style.borderColor = "#10b981";
-                    input.style.color = "#065f46";
-                    input.style.cursor = "not-allowed";
-                });
-                // Ocultar botones
                 document.getElementById("submit-answers").style.display = "none";
             } else if (respuestasIncorrectas > 0) {
                 // Solo mostrar "Volver a intentar" si hay respuestas incorrectas
