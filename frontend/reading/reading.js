@@ -148,11 +148,12 @@ function showSummaryModal(answered, correct, textId) {
         document.getElementById("summary-modal").style.display = "none";
         const inputs = document.querySelectorAll(".question-card input");
         inputs.forEach(input => {
-            // Si no está correcto, limpiar
-            if (input.style.backgroundColor !== "#d1fae5") {
+            // Si no está deshabilitado (no es respuesta correcta), limpiar
+            if (!input.disabled) {
                 input.value = "";
+                input.style.backgroundColor = "#ffffff";
                 input.style.borderColor = "#d1d5db";
-                input.disabled = false;
+                input.style.color = "#000000";
             }
         });
         // Mostrar botones
@@ -202,13 +203,15 @@ async function loadPreviousAnswers(textId) {
                         input.style.borderColor = "#10b981";
                         input.style.color = "#065f46";
                         input.disabled = true;
+                        input.dataset.correcta = "true";
                         respuestasCorrectas++;
                     } else {
-                        // INCORRECTAS con estilos normales
-                        input.style.backgroundColor = "#ffffff";
-                        input.style.borderColor = "#d1d5db";
-                        input.style.color = "#000000";
+                        // INCORRECTAS en rojo
+                        input.style.backgroundColor = "#fee2e2";
+                        input.style.borderColor = "#ef4444";
+                        input.style.color = "#991b1b";
                         input.disabled = false;
+                        input.dataset.correcta = "false";
                         respuestasIncorrectas++;
                     }
                 }
@@ -263,14 +266,17 @@ function showRetryButton() {
     });
 
     retryBtn.addEventListener("click", function () {
-        // Limpiar todos los inputs incorrectos (que no estén en verde)
-        // Estos generalmente estarán vacíos, pero nos aseguramos de limpiarlos
+        // Limpiar SOLO los inputs incorrectos (que no están deshabilitados)
+        // Las respuestas correctas (deshabilitadas) permanecen intactas
         const inputs = document.querySelectorAll(".question-card input");
         inputs.forEach(input => {
-            // Si no está deshabilitado (no es respuesta correcta), limpiar y permitir edición
+            // Si no está deshabilitado, es una respuesta incorrecta - limpiar
             if (!input.disabled) {
                 input.value = "";
+                input.style.backgroundColor = "#ffffff";
                 input.style.borderColor = "#d1d5db";
+                input.style.color = "#000000";
+                input.dataset.correcta = "false";
             }
         });
         // Mostrar botón de enviar de nuevo y ocultar retry
