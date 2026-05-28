@@ -465,7 +465,7 @@ def obtener_respuestas_por_texto(id_texto):
             FROM respuestas_estudiante re
             JOIN preguntas p ON re.id_pregunta = p.id_pregunta
             WHERE re.id_estudiante = %s AND p.id_texto = %s
-            ORDER BY re.id_pregunta, re.fecha DESC
+            ORDER BY re.fecha DESC
         """
 
         cursor.execute(query, (id_estudiante, id_texto))
@@ -647,9 +647,9 @@ def responder_con_feedback():
             es_correcta = normalizar_texto(respuesta) == normalizar_texto(respuesta_correcta)
         
         # Guardar respuesta
-        cursor.execute("""INSERT INTO respuestas_estudiante 
-                         (id_estudiante, id_pregunta, respuesta, es_correcta, tiempo_respuesta, fecha) 
-                         VALUES (%s, %s, %s, %s, %s, CURDATE())""",
+        cursor.execute("""INSERT INTO respuestas_estudiante
+                         (id_estudiante, id_pregunta, respuesta, es_correcta, tiempo_respuesta, fecha)
+                         VALUES (%s, %s, %s, %s, %s, NOW())""",
                       (id_estudiante, id_pregunta, respuesta, es_correcta, tiempo_respuesta))
         conn.commit()
         respuesta_id = cursor.lastrowid
