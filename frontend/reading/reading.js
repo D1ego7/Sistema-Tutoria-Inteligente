@@ -245,25 +245,9 @@ function showRetryButton() {
 
     const retryBtn = document.createElement("button");
     retryBtn.id = "retry-button";
+    retryBtn.className = "retry-button-styled";
     retryBtn.textContent = "🔄 Volver a intentar";
     retryBtn.style.flex = "1";
-    retryBtn.style.padding = "0.95rem 1.3rem";
-    retryBtn.style.borderRadius = "1rem";
-    retryBtn.style.cursor = "pointer";
-    retryBtn.style.fontWeight = "700";
-    retryBtn.style.border = "none";
-    retryBtn.style.background = "linear-gradient(135deg, #f59e0b 0%, #f97316 100%)";
-    retryBtn.style.color = "white";
-    retryBtn.style.fontSize = "1rem";
-    retryBtn.style.transition = "all 0.2s ease";
-
-    retryBtn.addEventListener("mouseover", function () {
-        retryBtn.style.boxShadow = "0 10px 25px rgba(245, 158, 11, 0.2)";
-    });
-
-    retryBtn.addEventListener("mouseout", function () {
-        retryBtn.style.boxShadow = "none";
-    });
 
     retryBtn.addEventListener("click", function () {
         // Limpiar SOLO los inputs incorrectos (que no están deshabilitados)
@@ -284,10 +268,12 @@ function showRetryButton() {
         container.style.display = "none";
     });
 
-    const submitBtnClone = submitBtn.cloneNode(true);
+    const submitBtnClone = document.createElement("button");
     submitBtnClone.id = "submit-answers-copy";
+    submitBtnClone.className = "submit-answers-styled";
+    submitBtnClone.textContent = "✓ Enviar respuestas";
     submitBtnClone.style.flex = "1";
-    submitBtnClone.style.background = "linear-gradient(135deg, #667eea 0%, #764ba2 100%)";
+
     submitBtnClone.addEventListener("click", async function () {
         const token = localStorage.getItem("token");
         const inputs = document.querySelectorAll(".question-card input");
