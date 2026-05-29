@@ -153,7 +153,6 @@ function formatNivel(nivel) {
     if (nivel === "literal") return "Literal";
     if (nivel === "inferencial") return "Inferencial";
     if (nivel === "crítico") return "Crítico";
-    if (nivel === "metacognitivo") return "Metacognitivo";
     return nivel;
 }
 

@@ -4,12 +4,12 @@ import unicodedata
 def obtener_nivel_actual(id_estudiante):
     """
     Obtiene el nivel actual del estudiante
-    
+
     Args:
         id_estudiante: ID del estudiante
-    
+
     Returns:
-        str: Nivel actual ('literal', 'inferencial', 'crítico', 'metacognitivo')
+        str: Nivel actual ('literal', 'inferencial', 'crítico')
         o None si no existe
     """
     try:
@@ -46,31 +46,31 @@ def obtener_nivel_actual(id_estudiante):
 def calcular_nuevo_nivel(nivel_actual, recomendacion):
     """
     Calcula el nuevo nivel basado en la recomendación
-    
+
     Args:
         nivel_actual: Nivel actual (ej: 'inferencial')
         recomendacion: Recomendación ('siguiente', 'anterior', 'mantener')
-    
+
     Returns:
         str: Nuevo nivel
     """
-    niveles_lista = ['literal', 'inferencial', 'crítico', 'metacognitivo']
-    
+    niveles_lista = ['literal', 'inferencial', 'crítico']
+
     try:
         indice_actual = niveles_lista.index(nivel_actual)
     except ValueError:
         # Si nivel_actual no es válido, comenzar en literal
         indice_actual = 0
-    
+
     if recomendacion == 'siguiente':
-        # Subir de nivel (máximo metacognitivo)
+        # Subir de nivel (máximo crítico)
         nuevo_indice = min(indice_actual + 1, len(niveles_lista) - 1)
     elif recomendacion == 'anterior':
         # Bajar de nivel (mínimo literal)
         nuevo_indice = max(indice_actual - 1, 0)
     else:  # 'mantener'
         nuevo_indice = indice_actual
-    
+
     return niveles_lista[nuevo_indice]
 
 
@@ -148,22 +148,22 @@ def calcular_puntuacion_estudiante(id_estudiante, limite_respuestas=None):
         
         # Analizar respuestas
         total = len(respuestas)
-        correctas = sum(1 for r in respuestas if r[1])  # r[1] es es_correcta
+        correctas = sum(1 for r in respuestas if r['es_correcta'])  # r['es_correcta'] es es_correcta
         porcentaje = (correctas / total * 100) if total > 0 else 0
         
         # Desglose por nivel
         por_nivel = {}
         for r in respuestas:
-            nivel = r[2]  # r[2] es tipo
+            nivel = r['tipo']  # r['tipo'] es tipo
             if nivel not in por_nivel:
                 por_nivel[nivel] = {'total': 0, 'correctas': 0}
             por_nivel[nivel]['total'] += 1
-            if r[1]:
+            if r['es_correcta']:
                 por_nivel[nivel]['correctas'] += 1
         
         # Calcular tendencia (últimas 5 respuestas)
         ultimas = respuestas[:5]
-        ultimas_correctas = sum(1 for r in ultimas if r[1])
+        ultimas_correctas = sum(1 for r in ultimas if r['es_correcta'])
         if ultimas_correctas >= 4:
             tendencia = 'mejorando'
         elif ultimas_correctas <= 1:
@@ -377,8 +377,7 @@ def generar_feedback_personalizado(id_pregunta, es_correcta, respuesta_usuario, 
         mensajes_exito = {
             'literal': '¡Correcto! Identificaste bien la información explícita del texto.',
             'inferencial': '¡Excelente! Realizaste una buena inferencia del contenido.',
-            'crítico': '¡Muy bien! Emitiste un juicio crítico acertado.',
-            'metacognitivo': '¡Perfecto! Reflexionaste correctamente sobre tu comprensión.'
+            'crítico': '¡Muy bien! Emitiste un juicio crítico acertado.'
         }
         feedback['mensaje'] = mensajes_exito.get(tipo_pregunta, '¡Respuesta correcta!')
     else:
@@ -389,8 +388,7 @@ def generar_feedback_personalizado(id_pregunta, es_correcta, respuesta_usuario, 
             mensajes_error = {
                 'literal': 'No es correcta. Lee nuevamente la información explícita en el texto.',
                 'inferencial': 'No es correcta. Piensa en lo que el autor quiere decir indirectamente.',
-                'crítico': 'No es correcta. Evalúa el contenido de forma más reflexiva.',
-                'metacognitivo': 'No es correcta. Piensa en tu proceso de comprensión.'
+                'crítico': 'No es correcta. Evalúa el contenido de forma más reflexiva.'
             }
             feedback['mensaje'] = mensajes_error.get(tipo_pregunta, 'Esa no es la respuesta correcta.')
             feedback['explicacion'] = f'La respuesta correcta es: {respuesta_correcta}'
@@ -402,11 +400,11 @@ def generar_feedback_personalizado(id_pregunta, es_correcta, respuesta_usuario, 
 def actualizar_nivel_estudiante(id_estudiante, nuevo_nivel):
     """
     Actualiza el nivel actual del estudiante en la tabla progreso
-    
+
     Args:
         id_estudiante: ID del estudiante
-        nuevo_nivel: Nuevo nivel (literal, inferencial, crítico, metacognitivo)
-    
+        nuevo_nivel: Nuevo nivel (literal, inferencial, crítico)
+
     Returns:
         bool: True si se actualizó, False si error
     """
