@@ -96,8 +96,24 @@ document.addEventListener("DOMContentLoaded", function () {
             }
         }
 
-        // Mostrar modal con resumen de sesión
-        showSummaryModal(enviadas, correctas, textId);
+        // Mostrar modal con resumen de sesión y retroalimentación del tutor
+        const feedbackRes = await fetch("http://127.0.0.1:5000/feedback-sesion", {
+            method: "POST",
+            headers: {
+                "Content-Type": "application/json",
+                "Authorization": `Bearer ${token}`
+            },
+            body: JSON.stringify({ id_texto: parseInt(textId) })
+        });
+
+        const feedbackData = await feedbackRes.json();
+        if (!feedbackRes.ok) {
+            console.error("Error obteniendo feedback:", feedbackData);
+            showToast(feedbackData.error || "No se pudo generar la retroalimentación", false);
+            return;
+        }
+
+        showSummaryModal(enviadas, correctas, feedbackData);
     });
 });
 
@@ -113,42 +129,82 @@ function showToast(mensaje, isSuccess = true) {
     }, 2500);
 }
 
-function showSummaryModal(answered, correct, textId) {
-    const percentage = answered > 0 ? Math.round((correct / answered) * 100) : 0;
+function showSummaryModal(answered, correct, feedbackData) {
+    const percentage = feedbackData?.puntaje?.porcentaje ?? (answered > 0 ? Math.round((correct / answered) * 100) : 0);
 
-    document.getElementById("summary-answered").textContent = answered;
-    document.getElementById("summary-correct").textContent = correct;
+    document.getElementById("summary-answered").textContent = feedbackData?.puntaje?.respondidas ?? answered;
+    document.getElementById("summary-correct").textContent = feedbackData?.puntaje?.correctas ?? correct;
     document.getElementById("summary-percentage").textContent = percentage + "%";
 
-    // Si hay recomendación de nivel, mostrarla
-    const recommendationBox = document.getElementById("recommendation-box");
-    if (answered >= 5) {
-        if (percentage >= 80) {
-            recommendationBox.style.display = "block";
-            document.getElementById("recommendation-text").textContent = "¡Excelente desempeño! Estás listo para el siguiente nivel.";
-        } else if (percentage < 50) {
-            recommendationBox.style.display = "block";
-            document.getElementById("recommendation-text").textContent = "Necesitas practicar más en este nivel antes de avanzar.";
-        } else {
-            recommendationBox.style.display = "none";
-        }
+    document.getElementById("feedback-level").textContent = feedbackData?.nivel_actual || "-";
+    document.getElementById("feedback-trend").textContent = feedbackData?.estado_nivel ? feedbackData.estado_nivel.toUpperCase() : "-";
+    document.getElementById("feedback-next-level").textContent = feedbackData?.nuevo_nivel || "-";
+    document.getElementById("feedback-tutor-message").textContent = feedbackData?.mensaje_tutor || "Sigue practicando para mejorar tu comprensión.";
+
+    const errorsContainer = document.getElementById("feedback-errors");
+    errorsContainer.innerHTML = "";
+    if (feedbackData?.errores_detectados?.length > 0) {
+        const questionInputs = document.querySelectorAll(".question-card input");
+        const questionIndexById = {};
+        questionInputs.forEach((input, index) => {
+            const id = input.id.replace("q-", "");
+            questionIndexById[id] = index + 1;
+        });
+
+        const list = document.createElement("ul");
+        list.className = "feedback-list";
+        feedbackData.errores_detectados.forEach(error => {
+            const numeroPregunta = questionIndexById[String(error.pregunta_id)] || error.pregunta_id;
+            const item = document.createElement("li");
+            item.textContent = `Pregunta ${numeroPregunta}: nivel ${error.nivel} — respuesta esperada: ${error.respuesta_correcta}`;
+            list.appendChild(item);
+        });
+        errorsContainer.appendChild(list);
     } else {
-        recommendationBox.style.display = "none";
+        const empty = document.createElement("p");
+        empty.className = "feedback-empty";
+        empty.textContent = "No se detectaron errores específicos en esta sesión.";
+        errorsContainer.appendChild(empty);
+    }
+
+    const practiceContainer = document.getElementById("feedback-practice");
+    practiceContainer.innerHTML = "";
+    const plan = feedbackData?.plan_reforzamiento;
+    const practicaUnica = plan?.mensaje || null;
+    if (practicaUnica) {
+        const paragraph = document.createElement("p");
+        paragraph.className = "feedback-text";
+        paragraph.textContent = practicaUnica;
+        practiceContainer.appendChild(paragraph);
+    } else {
+        const empty = document.createElement("p");
+        empty.className = "feedback-empty";
+        empty.textContent = "No hay recomendaciones de práctica por ahora.";
+        practiceContainer.appendChild(empty);
+    }
+
+    const recommendationBox = document.getElementById("recommendation-box");
+    if (percentage >= 80) {
+        recommendationBox.style.display = "block";
+        document.getElementById("recommendation-text").textContent = "¡Excelente! Respondiste muy bien. Puedes probar un poco más difícil si quieres.";
+    } else if (percentage < 50) {
+        recommendationBox.style.display = "block";
+        document.getElementById("recommendation-text").textContent = "No te preocupes. Practica un poco más en este mismo nivel y lo harás mejor.";
+    } else {
+        recommendationBox.style.display = "block";
+        document.getElementById("recommendation-text").textContent = "Buen trabajo. Sigue practicando y poco a poco será más fácil.";
     }
 
     document.getElementById("summary-modal").style.display = "flex";
 
-    // Configurar botones
     document.getElementById("btn-continue-dashboard").onclick = function () {
         window.location.href = "menu.html";
     };
 
     document.getElementById("btn-retry-reading").onclick = function () {
-        // Limpiar inputs incorrectos y permitir reintentar
         document.getElementById("summary-modal").style.display = "none";
         const inputs = document.querySelectorAll(".question-card input");
         inputs.forEach(input => {
-            // Si no está deshabilitado (no es respuesta correcta), limpiar
             if (!input.disabled) {
                 input.value = "";
                 input.style.backgroundColor = "#ffffff";
@@ -156,7 +212,6 @@ function showSummaryModal(answered, correct, textId) {
                 input.style.color = "#000000";
             }
         });
-        // Mostrar botones
         const submitBtn = document.getElementById("submit-answers");
         const buttonContainer = document.getElementById("button-container");
         if (submitBtn && submitBtn.style.display === "none") {
@@ -210,7 +265,7 @@ async function loadPreviousAnswers(textId) {
                         input.style.backgroundColor = "#fee2e2";
                         input.style.borderColor = "#ef4444";
                         input.style.color = "#991b1b";
-                        input.disabled = false;
+                        input.disabled = true;
                         input.dataset.correcta = "false";
                         respuestasIncorrectas++;
                     }
@@ -221,7 +276,7 @@ async function loadPreviousAnswers(textId) {
             if (todasCorrectas && totalRespuestas > 0) {
                 document.getElementById("submit-answers").style.display = "none";
             } else if (respuestasIncorrectas > 0) {
-                // Solo mostrar "Volver a intentar" si hay respuestas incorrectas
+                document.getElementById("submit-answers").style.display = "none";
                 showRetryButton();
             }
         }, 500);
@@ -255,12 +310,13 @@ function showRetryButton() {
         const inputs = document.querySelectorAll(".question-card input");
         inputs.forEach(input => {
             // Si no está deshabilitado, es una respuesta incorrecta - limpiar
-            if (!input.disabled) {
+            if (input.dataset.correcta === "false") {
                 input.value = "";
                 input.style.backgroundColor = "#ffffff";
                 input.style.borderColor = "#d1d5db";
                 input.style.color = "#000000";
                 input.dataset.correcta = "false";
+                input.disabled = false;
             }
         });
         // Mostrar botón de enviar de nuevo y ocultar retry
@@ -274,77 +330,8 @@ function showRetryButton() {
     submitBtnClone.textContent = "✓ Enviar respuestas";
     submitBtnClone.style.flex = "1";
 
-    submitBtnClone.addEventListener("click", async function () {
-        const token = localStorage.getItem("token");
-        const inputs = document.querySelectorAll(".question-card input");
-
-        // Validar que todas las preguntas sean respondidas
-        let allAnswered = true;
-        for (let input of inputs) {
-            const respuesta = input.value.trim();
-            if (!respuesta) {
-                allAnswered = false;
-                input.style.borderColor = "#ef4444";
-                break;
-            }
-            input.style.borderColor = "#d1d5db";
-        }
-
-        if (!allAnswered) {
-            showToast("Debes responder todas las preguntas", false);
-            return;
-        }
-
-        let enviadas = 0;
-        let correctas = 0;
-
-        for (let input of inputs) {
-            const respuesta = input.value.trim();
-            const id_pregunta = input.id.replace("q-", "");
-
-            try {
-                const res = await fetch("http://127.0.0.1:5000/respuesta-con-feedback", {
-                    method: "POST",
-                    headers: {
-                        "Content-Type": "application/json",
-                        "Authorization": `Bearer ${token}`
-                    },
-                    body: JSON.stringify({
-                        id_pregunta: parseInt(id_pregunta),
-                        respuesta: respuesta,
-                        tiempo_respuesta: 10
-                    })
-                });
-
-                const data = await res.json();
-
-                if (!res.ok) {
-                    console.error("Error del servidor:", data);
-                    showToast(data.error || "No se pudo guardar la respuesta", false);
-                    continue;
-                }
-
-                console.log("Respuesta guardada:", data);
-                enviadas++;
-                if (data.es_correcta) correctas++;
-
-                // Mostrar toast con resultado de cada respuesta
-                const mensaje = data.es_correcta ? "✓ Correcto" : "✗ Incorrecto";
-                showToast(mensaje, data.es_correcta);
-
-            } catch (err) {
-                console.error("Error enviando respuesta:", err);
-                showToast("Error al guardar respuesta", false);
-            }
-        }
-
-        // Mostrar modal con resumen de sesión
-        const textId = new URLSearchParams(window.location.search).get('id');
-        showSummaryModal(enviadas, correctas, textId);
-    });
-
     container.appendChild(retryBtn);
-    container.appendChild(submitBtnClone);
+    // container.appendChild(submitBtnClone);
     submitBtn.parentElement.appendChild(container);
     submitBtn.style.display = "none";
 }

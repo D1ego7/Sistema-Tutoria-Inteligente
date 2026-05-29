@@ -69,8 +69,8 @@ async function loadTexts() {
             return;
         }
 
-        const texts = await res.json();
-        displayTexts(texts);
+        const data = await res.json();
+        displayTexts(data.textos);
     } catch (err) {
         console.error("Error cargando textos:", err);
     }
@@ -108,7 +108,7 @@ function displayTexts(texts) {
 function getLevelLabel(level) {
     if (level === "literal") return "Literal";
     if (level === "inferencial") return "Inferencial";
-    if (level === "critico") return "Crítico";
+    if (level === "crítico" || level === "critico") return "Crítico";
     return "Nivel";
 }
 
@@ -134,7 +134,7 @@ function displayProgressFromBackend(data) {
     const pct = total === 0 ? 0 : Math.round((correct / total) * 100);
 
     // Nivel
-    const nivel = data.recomendacion_siguiente?.nuevo_nivel || "literal";
+    const nivel = data.nivel_actual || "literal";
     document.getElementById("level-badge").textContent = formatNivel(nivel);
 
     // Aciertos
@@ -152,7 +152,7 @@ function displayProgressFromBackend(data) {
 function formatNivel(nivel) {
     if (nivel === "literal") return "Literal";
     if (nivel === "inferencial") return "Inferencial";
-    if (nivel === "crítico") return "Crítico";
+    if (nivel === "crítico" || nivel === "critico") return "Crítico";
     return nivel;
 }
 

@@ -9,8 +9,11 @@ from services.tutoring import (
     generar_feedback_personalizado,
     calcular_nivel_lector_diagnostico,
     normalizar_texto,
+    obtener_nivel_actual,
     get_db_cursor,
-    actualizar_nivel_estudiante
+    actualizar_nivel_estudiante,
+    comparar_niveles,
+    crear_plan_reforzamiento
 )
 import bcrypt
 import os
@@ -82,6 +85,18 @@ def header_js():
 def header_html():
     return send_from_directory("frontend/common", "header.html")
 
+@app.route("/diagnostico.html")
+def diagnostico_html():
+    return send_from_directory("frontend/diagnostico", "diagnostico.html")
+
+@app.route("/diagnostico.js")
+def diagnostico_js():
+    return send_from_directory("frontend/diagnostico", "diagnostico.js")
+
+@app.route("/diagnostico.css")
+def diagnostico_css():
+    return send_from_directory("frontend/diagnostico", "diagnostico.css")
+
 @app.route("/texto/<int:id_texto>", methods=['GET'])
 @jwt_required()
 def obtener_texto(id_texto):
@@ -103,20 +118,46 @@ def obtener_texto(id_texto):
 @app.route("/textos")
 @jwt_required()
 def obtener_textos():
-    """Obtiene todos los textos disponibles (requiere autenticación)"""
+    """Obtiene textos filtrados según el nivel actual del estudiante"""
     try:
+        id_usuario = int(get_jwt_identity())
+
         conn, cursor = get_db_cursor()
-        cursor.execute("SELECT id_texto, titulo, contenido, nivel FROM textos")
-        resultados = cursor.fetchall()
+
+        cursor.execute(
+            "SELECT id_estudiante FROM estudiantes WHERE id_usuario = %s",
+            (id_usuario,)
+        )
+        estudiante = cursor.fetchone()
+
+        if not estudiante:
+            cursor.close()
+            conn.close()
+            return jsonify({"error": "El usuario no es estudiante"}), 400
+
+        id_estudiante = estudiante["id_estudiante"]
+
+        nivel_actual = obtener_nivel_actual(id_estudiante)
+
+        cursor.execute("""
+            SELECT id_texto, titulo, contenido, nivel
+            FROM textos
+            WHERE LOWER(TRIM(nivel)) = LOWER(TRIM(%s))
+            ORDER BY id_texto DESC
+        """, (nivel_actual,))
+
+        textos = cursor.fetchall()
+
         cursor.close()
         conn.close()
-        
-        if not resultados:
-            return jsonify([]), 200
-        
-        return jsonify(resultados), 200
+
+        return jsonify({
+            "nivel_actual": nivel_actual,
+            "textos": textos
+        }), 200
+
     except Exception as e:
-        return jsonify({"error": f"Error al obtener textos: {str(e)}"}), 500
+        return jsonify({"error": str(e)}), 500
 
 # ===========================================
 # APARTADO DE AUTENTICACIÓN
@@ -675,16 +716,8 @@ def responder_con_feedback():
         total_respuestas = resultado_count['COUNT(*)'] if isinstance(resultado_count, dict) else resultado_count[0]
         
         recomendacion = None
-        if total_respuestas >= 5:
-            cursor.close()
-            conn.close()
-            recomendacion = recomendar_nivel_siguiente(id_estudiante)
-            # Actualizar nivel si hay recomendación de cambio
-            if recomendacion and recomendacion.get('recomendacion') in ['siguiente', 'anterior']:
-                actualizar_nivel_estudiante(id_estudiante, recomendacion.get('nuevo_nivel'))
-        else:
-            cursor.close()
-            conn.close()
+        cursor.close()
+        conn.close()
         
         resultado = {
             "id_respuesta_est": respuesta_id,
@@ -707,6 +740,103 @@ def responder_con_feedback():
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
+@app.route('/feedback-sesion', methods=['POST'])
+@jwt_required()
+def feedback_sesion():
+    """Genera un resumen completo de la sesión de lectura para el estudiante."""
+    try:
+        data = request.get_json() or {}
+        id_texto = data.get('id_texto')
+
+        if not id_texto:
+            return jsonify({"error": "id_texto es requerido"}), 400
+
+        id_usuario = int(get_jwt_identity())
+        conn, cursor = get_db_cursor()
+        cursor.execute("SELECT id_estudiante FROM estudiantes WHERE id_usuario = %s", (id_usuario,))
+        estudiante = cursor.fetchone()
+
+        if not estudiante:
+            cursor.close()
+            conn.close()
+            return jsonify({"error": "Usuario no es estudiante"}), 400
+
+        id_estudiante = estudiante['id_estudiante']
+
+        query = """
+            SELECT re.id_pregunta, re.respuesta, re.es_correcta, p.enunciado, p.tipo, rc.respuesta AS respuesta_correcta
+            FROM respuestas_estudiante re
+            JOIN preguntas p ON re.id_pregunta = p.id_pregunta
+            LEFT JOIN respuestas_correctas rc ON p.id_pregunta = rc.id_pregunta
+            WHERE re.id_estudiante = %s AND p.id_texto = %s
+              AND re.id_respuesta_est = (
+                  SELECT MAX(re2.id_respuesta_est)
+                  FROM respuestas_estudiante re2
+                  WHERE re2.id_pregunta = re.id_pregunta
+                    AND re2.id_estudiante = re.id_estudiante
+              )
+        """
+        cursor.execute(query, (id_estudiante, id_texto))
+        respuestas = cursor.fetchall()
+
+        preguntas_respondidas = len(respuestas)
+        respuestas_correctas = sum(1 for r in respuestas if r['es_correcta'])
+        porcentaje = round((respuestas_correctas / preguntas_respondidas * 100), 2) if preguntas_respondidas > 0 else 0
+
+        errores_detectados = []
+        for r in respuestas:
+            if not r['es_correcta']:
+                errores_detectados.append({
+                    'pregunta_id': r['id_pregunta'],
+                    'nivel': r['tipo'],
+                    'respuesta_usuario': r['respuesta'],
+                    'respuesta_correcta': r['respuesta_correcta']
+                })
+
+        nivel_actual = obtener_nivel_actual(id_estudiante)
+        recomendacion = recomendar_nivel_siguiente(id_estudiante)
+        if not recomendacion or 'error' in recomendacion:
+            recomendacion = {
+                'nuevo_nivel': nivel_actual,
+                'recomendacion': 'mantener',
+                'razon': 'Sigue practicando para mejorar tu comprensión.',
+                'confianza': 'media'
+            }
+        nuevo_nivel = recomendacion.get('nuevo_nivel', nivel_actual)
+        estado_nivel = comparar_niveles(nivel_actual, nuevo_nivel)
+
+        if recomendacion and recomendacion.get('recomendacion') in ['siguiente', 'anterior']:
+            actualizar_nivel_estudiante(id_estudiante, nuevo_nivel)
+
+        patrones_error = detectar_patrones_error(id_estudiante, limite_respuestas=20)
+        recomendaciones_practica = patrones_error.get('recomendaciones', [])
+        if not recomendaciones_practica and recomendacion.get('razon'):
+            recomendaciones_practica = [recomendacion.get('razon')]
+
+        plan_reforzamiento = crear_plan_reforzamiento(id_estudiante)
+
+        cursor.close()
+        conn.close()
+
+        return jsonify({
+            'puntaje': {
+                'respondidas': preguntas_respondidas,
+                'correctas': respuestas_correctas,
+                'porcentaje': porcentaje
+            },
+            'nivel_actual': nivel_actual,
+            'nuevo_nivel': nuevo_nivel,
+            'estado_nivel': estado_nivel,
+            'mensaje_tutor': recomendacion.get('razon', 'Continúa practicando según tu desempeño.'),
+            'errores_detectados': errores_detectados if respuestas_correctas < preguntas_respondidas else [],
+            'patrones_error': patrones_error,
+            'recomendacion_practica': recomendaciones_practica,
+            'recomendacion_accion': recomendacion.get('recomendacion', 'mantener'),
+            'plan_reforzamiento': plan_reforzamiento
+        }), 200
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
 @app.route('/diagnostico-inicial', methods=['POST'])
 @jwt_required()
 def realizar_diagnostico():
@@ -719,8 +849,7 @@ def realizar_diagnostico():
     Retorna el nivel inicial asignado
     """
     try:
-        current_user = get_jwt_identity()
-        id_usuario = current_user['id']
+        id_usuario = int(get_jwt_identity())
         data = request.get_json()
         
         respuestas = data.get('respuestas', [])
@@ -741,13 +870,6 @@ def realizar_diagnostico():
         
         id_estudiante = estudiante['id_estudiante']
         
-        # Guardar respuestas del diagnóstico
-        for pregunta_id, es_correcta in zip(preguntas_ids, respuestas):
-            cursor.execute("""INSERT INTO respuestas_estudiante 
-                             (id_estudiante, id_pregunta, respuesta, es_correcta, tiempo_respuesta, fecha) 
-                             VALUES (%s, %s, %s, %s, %s, CURDATE())""",
-                          (id_estudiante, pregunta_id, '', es_correcta, 0))
-        
         conn.commit()
         
         # Calcular nivel
@@ -757,7 +879,7 @@ def realizar_diagnostico():
         # Guardar en tabla diagnostico
         cursor.execute("""INSERT INTO diagnostico 
                          (id_estudiante, puntaje, nivel_asignado, fecha) 
-                         VALUES (%s, %s, %s, CURDATE())""",
+                         VALUES (%s, %s, %s, NOW())""",
                       (id_estudiante, resultado_diagnostico['porcentaje'], nivel_asignado))
         
         conn.commit()
@@ -773,6 +895,44 @@ def realizar_diagnostico():
             "detalle": resultado_diagnostico,
             "mensaje": resultado_diagnostico['razon']
         }), 201
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+@app.route('/diagnostico-estado', methods=['GET'])
+@jwt_required()
+def diagnostico_estado():
+    try:
+        id_usuario = int(get_jwt_identity())
+
+        conn, cursor = get_db_cursor()
+        cursor.execute("SELECT id_estudiante FROM estudiantes WHERE id_usuario = %s", (id_usuario,))
+        estudiante = cursor.fetchone()
+
+        if not estudiante:
+            cursor.close()
+            conn.close()
+            return jsonify({"error": "Usuario no es estudiante"}), 400
+
+        id_estudiante = estudiante['id_estudiante']
+
+        cursor.execute("""
+            SELECT id_diagnostico, nivel_asignado, puntaje, fecha
+            FROM diagnostico
+            WHERE id_estudiante = %s
+            ORDER BY fecha DESC
+            LIMIT 1
+        """, (id_estudiante,))
+
+        diagnostico = cursor.fetchone()
+
+        cursor.close()
+        conn.close()
+
+        return jsonify({
+            "tiene_diagnostico": diagnostico is not None,
+            "diagnostico": diagnostico
+        }), 200
+
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
@@ -851,6 +1011,7 @@ def obtener_progreso():
         evaluacion = calcular_puntuacion_estudiante(id_estudiante)
         patrones = detectar_patrones_error(id_estudiante, 10)
         recomendacion = recomendar_nivel_siguiente(id_estudiante)
+        nivel_actual = obtener_nivel_actual(id_estudiante)
 
         # 🔹 Obtener diagnóstico inicial
         cursor.execute("""
@@ -873,6 +1034,7 @@ def obtener_progreso():
 
         return jsonify({
             "id_estudiante": id_estudiante,
+            "nivel_actual": nivel_actual,
             "evaluacion": evaluacion,
             "diagnostico_inicial": diagnostico_info,
             "patrones_error": patrones,

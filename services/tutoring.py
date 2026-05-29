@@ -2,42 +2,44 @@ from config import get_db_connection
 import unicodedata
 
 def obtener_nivel_actual(id_estudiante):
-    """
-    Obtiene el nivel actual del estudiante
-
-    Args:
-        id_estudiante: ID del estudiante
-
-    Returns:
-        str: Nivel actual ('literal', 'inferencial', 'crítico')
-        o None si no existe
-    """
     try:
         conn, cursor = get_db_cursor()
-        
-        # Intentar obtener del progreso
-        cursor.execute("SELECT nivel_actual FROM progreso WHERE id_estudiante = %s", (id_estudiante,))
+
+        cursor.execute("""
+            SELECT nivel_actual
+            FROM progreso
+            WHERE id_estudiante = %s
+            ORDER BY id_progreso DESC
+            LIMIT 1
+        """, (id_estudiante,))
+
         resultado = cursor.fetchone()
-        
+
         if resultado:
             nivel = resultado['nivel_actual'] if isinstance(resultado, dict) else resultado[0]
             cursor.close()
             conn.close()
-            return nivel
-        
-        # Si no existe en progreso, intentar en diagnostico
-        cursor.execute("""SELECT nivel_asignado FROM diagnostico 
-                         WHERE id_estudiante = %s 
-                         ORDER BY fecha DESC LIMIT 1""", (id_estudiante,))
+            return nivel.strip().lower()
+
+        cursor.execute("""
+            SELECT nivel_asignado
+            FROM diagnostico
+            WHERE id_estudiante = %s
+            ORDER BY fecha DESC
+            LIMIT 1
+        """, (id_estudiante,))
+
         resultado = cursor.fetchone()
+
         cursor.close()
         conn.close()
-        
+
         if resultado:
-            return resultado['nivel_asignado'] if isinstance(resultado, dict) else resultado[0]
-        
-        # Por defecto, comenzar en literal
+            nivel = resultado['nivel_asignado'] if isinstance(resultado, dict) else resultado[0]
+            return nivel.strip().lower()
+
         return 'literal'
+
     except Exception as e:
         print(f"Error al obtener nivel actual: {str(e)}")
         return 'literal'
@@ -72,6 +74,27 @@ def calcular_nuevo_nivel(nivel_actual, recomendacion):
         nuevo_indice = indice_actual
 
     return niveles_lista[nuevo_indice]
+
+
+def comparar_niveles(nivel_actual, nuevo_nivel):
+    """
+    Compara dos niveles y devuelve si el estudiante sube, baja o se mantiene.
+    """
+    niveles_lista = ['literal', 'inferencial', 'crítico']
+    try:
+        actual = niveles_lista.index(nivel_actual)
+    except ValueError:
+        actual = 0
+    try:
+        nuevo = niveles_lista.index(nuevo_nivel)
+    except ValueError:
+        nuevo = actual
+
+    if nuevo > actual:
+        return 'sube'
+    if nuevo < actual:
+        return 'baja'
+    return 'mantiene'
 
 
 def normalizar_texto(texto):
@@ -311,7 +334,7 @@ def recomendar_nivel_siguiente(id_estudiante):
                 'nivel_actual': nivel_actual,
                 'recomendacion': 'mantener',
                 'nuevo_nivel': nuevo_nivel,
-                'razon': 'Primer diagnóstico. Comenzar con nivel básico.',
+                'razon': 'Vamos a empezar con un nivel sencillo para que te sientas cómodo.',
                 'confianza': 'baja'
             }
         
@@ -321,19 +344,19 @@ def recomendar_nivel_siguiente(id_estudiante):
         # Lógica de recomendación
         if porcentaje >= 80 and tendencia in ['mejorando', 'estable']:
             recomendacion_accion = 'siguiente'
-            razon = f'Desempeño excelente ({porcentaje}%). Listo para aumentar dificultad.'
+            razon = '¡Muy bien! Estás respondiendo bien. Puedes intentar un ejercicio un poco más difícil.'
             confianza = 'alta'
         elif porcentaje >= 60 and tendencia == 'mejorando':
             recomendacion_accion = 'mantener'
-            razon = f'Desempeño aceptable ({porcentaje}%). Sigues mejorando, mantén el nivel.'
+            razon = '¡Buen trabajo! Estás mejorando. Sigue practicando en este nivel.'
             confianza = 'media'
         elif porcentaje < 40:
             recomendacion_accion = 'anterior'
-            razon = f'Desempeño bajo ({porcentaje}%). Vuelve a practicar el nivel anterior.'
+            razon = 'Todavía te cuesta un poco. Practica más en este nivel para sentirte mejor.'
             confianza = 'alta'
         else:
             recomendacion_accion = 'mantener'
-            razon = f'Desempeño en desarrollo ({porcentaje}%). Sigue practicando en este nivel.'
+            razon = 'Estás progresando. Sigue practicando en este nivel para mejorar.'
             confianza = 'media'
         
         # Calcular nuevo nivel
@@ -375,24 +398,24 @@ def generar_feedback_personalizado(id_pregunta, es_correcta, respuesta_usuario, 
     
     if es_correcta:
         mensajes_exito = {
-            'literal': '¡Correcto! Identificaste bien la información explícita del texto.',
-            'inferencial': '¡Excelente! Realizaste una buena inferencia del contenido.',
-            'crítico': '¡Muy bien! Emitiste un juicio crítico acertado.'
+            'literal': '¡Muy bien! Encontraste la respuesta en el texto.',
+            'inferencial': '¡Bien hecho! Pensaste en lo que el texto quiere decir.',
+            'crítico': '¡Genial! Usaste tus ideas para entender el texto mejor.'
         }
-        feedback['mensaje'] = mensajes_exito.get(tipo_pregunta, '¡Respuesta correcta!')
+        feedback['mensaje'] = mensajes_exito.get(tipo_pregunta, '¡Muy bien! Tu respuesta es correcta.')
     else:
         if not respuesta_usuario or respuesta_usuario.strip() == '':
-            feedback['mensaje'] = 'Por favor, responde la pregunta. No dejes espacios en blanco.'
-            feedback['pista'] = 'Lee nuevamente el texto y piensa en la respuesta.'
+            feedback['mensaje'] = 'No escribiste una respuesta. Intenta responder con calma.'
+            feedback['pista'] = 'Lee otra vez el texto y escribe lo que piensas.'
         else:
             mensajes_error = {
-                'literal': 'No es correcta. Lee nuevamente la información explícita en el texto.',
-                'inferencial': 'No es correcta. Piensa en lo que el autor quiere decir indirectamente.',
-                'crítico': 'No es correcta. Evalúa el contenido de forma más reflexiva.'
+                'literal': 'No es correcta. Busca la respuesta en el texto otra vez.',
+                'inferencial': 'No es correcta. Trata de entender el mensaje del texto y responde con tus palabras.',
+                'crítico': 'No es correcta. Piensa con calma y responde lo que tú opinas sobre el texto.'
             }
             feedback['mensaje'] = mensajes_error.get(tipo_pregunta, 'Esa no es la respuesta correcta.')
             feedback['explicacion'] = f'La respuesta correcta es: {respuesta_correcta}'
-            feedback['pista'] = 'Intenta de nuevo o avanza a la siguiente pregunta.'
+            feedback['pista'] = 'Inténtalo de nuevo con calma y revisa el texto otra vez.'
     
     return feedback
 
@@ -467,4 +490,70 @@ def calcular_nivel_lector_diagnostico(respuestas_diagnostico):
         'confianza': confianza,
         'porcentaje': round(porcentaje, 2),
         'razon': f'Basado en tu desempeño ({correctas}/{total} correctas), iniciamos en nivel {nivel}.'
+    }
+
+def crear_plan_reforzamiento(id_estudiante):
+    """
+    Crea un plan de reforzamiento según el desempeño por nivel lector.
+    """
+    evaluacion = calcular_puntuacion_estudiante(id_estudiante, limite_respuestas=20)
+
+    if 'error' in evaluacion:
+        return {
+            "nivel_reforzar": "literal",
+            "mensaje": "No se pudo analizar el desempeño. Se recomienda iniciar con textos literales.",
+            "textos_recomendados": "literal",
+            "desbloquear_siguiente": False
+        }
+
+    por_nivel = evaluacion.get('por_nivel', {})
+    porcentaje_general = evaluacion.get('porcentaje_acierto', 0)
+
+    niveles = ['literal', 'inferencial', 'crítico']
+
+    # Detectar nivel con menor desempeño
+    nivel_bajo = None
+    menor_porcentaje = 101
+
+    for nivel in niveles:
+        datos = por_nivel.get(nivel)
+        if datos and datos.get('total', 0) > 0:
+            porcentaje = datos.get('porcentaje', 0)
+            if porcentaje < menor_porcentaje:
+                menor_porcentaje = porcentaje
+                nivel_bajo = nivel
+
+    # Si no hay datos suficientes
+    if not nivel_bajo:
+        return {
+            "nivel_reforzar": "literal",
+            "mensaje": "Aún necesitas resolver más actividades para generar un plan personalizado.",
+            "textos_recomendados": "literal",
+            "desbloquear_siguiente": False
+        }
+
+    # Buen desempeño
+    if porcentaje_general >= 80:
+        recomendacion_nivel = recomendar_nivel_siguiente(id_estudiante)
+        nuevo_nivel = recomendacion_nivel.get('nuevo_nivel', nivel_bajo)
+
+        return {
+            "nivel_reforzar": None,
+            "mensaje": f"¡Excelente desempeño! Puedes avanzar al nivel {nuevo_nivel}.",
+            "textos_recomendados": nuevo_nivel,
+            "desbloquear_siguiente": True
+        }
+
+    # Bajo desempeño por nivel
+    mensajes = {
+        "literal": "Necesitas reforzar la identificación de información explícita del texto. Se recomiendan textos de nivel literal.",
+        "inferencial": "Necesitas reforzar la deducción de ideas implícitas. Se recomiendan textos de nivel inferencial.",
+        "crítico": "Necesitas reforzar la opinión, valoración y análisis del texto. Se recomiendan textos de nivel crítico."
+    }
+
+    return {
+        "nivel_reforzar": nivel_bajo,
+        "mensaje": mensajes.get(nivel_bajo),
+        "textos_recomendados": nivel_bajo,
+        "desbloquear_siguiente": False
     }

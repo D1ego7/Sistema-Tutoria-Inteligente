@@ -1,0 +1,195 @@
+/* ==========================================
+   DIAGNÓSTICO INICIAL
+========================================== */
+
+.main-content {
+    max-width: 1100px;
+    margin: 0 auto;
+    padding: 2rem 1.5rem 4rem;
+}
+
+/* ==========================================
+   TARJETA PRINCIPAL
+========================================== */
+
+.diagnostic-card,
+.reading-card {
+    background: white;
+    border-radius: 1.75rem;
+    overflow: hidden;
+    box-shadow: 0 12px 40px rgba(15, 23, 42, 0.08);
+    border: 1px solid #e5e7eb;
+}
+
+.reading-hero {
+    background: linear-gradient(
+        135deg,
+        #667eea 0%,
+        #764ba2 100%
+    );
+    color: white;
+    padding: 2rem;
+    display: flex;
+    align-items: center;
+    gap: 1.25rem;
+}
+
+.reading-emoji {
+    font-size: 3rem;
+}
+
+.reading-hero h2 {
+    margin: 0;
+    font-size: 2rem;
+    font-weight: 700;
+}
+
+.reading-hero p {
+    margin-top: 0.5rem;
+    opacity: 0.95;
+    font-size: 1rem;
+}
+
+/* ==========================================
+   TEXTO DEL DIAGNÓSTICO
+========================================== */
+
+.reading-body {
+    padding: 2.5rem;
+}
+
+#diagnostic-text {
+    background: #f8fafc;
+    border: 1px solid #e2e8f0;
+    border-radius: 1.25rem;
+    padding: 2rem;
+    color: #334155;
+    font-size: 1.08rem;
+    line-height: 2;
+    text-align: justify;
+    margin-bottom: 2.5rem;
+}
+
+/* ==========================================
+   PREGUNTAS
+========================================== */
+
+#diagnostic-questions {
+    display: flex;
+    flex-direction: column;
+    gap: 1.5rem;
+}
+
+.question-card {
+    background: #ffffff;
+    border: 1px solid #e5e7eb;
+    border-radius: 1.5rem;
+    padding: 1.75rem;
+    transition: all 0.25s ease;
+}
+
+.question-card:hover {
+    border-color: #c7d2fe;
+    box-shadow: 0 8px 20px rgba(99, 102, 241, 0.08);
+}
+
+.question-label {
+    font-size: 1.1rem;
+    font-weight: 700;
+    color: #111827;
+    margin-bottom: 1rem;
+    line-height: 1.6;
+}
+
+.question-card input {
+    width: 100%;
+    padding: 1rem 1.2rem;
+    border-radius: 1rem;
+    border: 1px solid #cbd5e1;
+    font-size: 1rem;
+    transition: all 0.2s ease;
+    box-sizing: border-box;
+}
+
+.question-card input:focus {
+    outline: none;
+    border-color: #667eea;
+    box-shadow: 0 0 0 4px rgba(102, 126, 234, 0.12);
+}
+
+/* ==========================================
+   BOTÓN FINALIZAR
+========================================== */
+
+#submit-diagnostic {
+    width: 100%;
+    margin-top: 2.5rem;
+    border: none;
+    border-radius: 1rem;
+    padding: 1.2rem;
+    font-size: 1.05rem;
+    font-weight: 700;
+    color: white;
+    cursor: pointer;
+
+    background: linear-gradient(
+        135deg,
+        #667eea 0%,
+        #764ba2 100%
+    );
+
+    box-shadow: 0 8px 24px rgba(102, 126, 234, 0.25);
+
+    transition: all 0.25s ease;
+}
+
+#submit-diagnostic:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 14px 36px rgba(102, 126, 234, 0.35);
+}
+
+#submit-diagnostic:active {
+    transform: translateY(0);
+}
+
+/* ==========================================
+   INDICADOR DE DIAGNÓSTICO
+========================================== */
+
+.diagnostic-info {
+    background: #eef2ff;
+    color: #4338ca;
+    border: 1px solid #c7d2fe;
+    border-radius: 1rem;
+    padding: 1rem 1.25rem;
+    margin-bottom: 2rem;
+    font-weight: 600;
+}
+
+/* ==========================================
+   RESPONSIVE
+========================================== */
+
+@media (max-width: 768px) {
+
+    .reading-body {
+        padding: 1.5rem;
+    }
+
+    .reading-hero {
+        padding: 1.5rem;
+    }
+
+    .reading-hero h2 {
+        font-size: 1.5rem;
+    }
+
+    .question-card {
+        padding: 1.25rem;
+    }
+
+    #diagnostic-text {
+        padding: 1.5rem;
+        font-size: 1rem;
+    }
+}

@@ -72,13 +72,12 @@
 }
 
 .reading-body {
-    padding: 1.5rem;
-    line-height: 1.85;
+    padding: 2rem 2.5rem;
+    line-height: 2;
     color: #334155;
     white-space: pre-line;
-    font-size: 1rem;
-    max-width: 72ch;
-    margin: 0 auto;
+    font-size: 1.08rem;
+    text-align: justify;
 }
 
 .questions-panel {
@@ -325,9 +324,9 @@
     background: white;
     border-radius: 1.5rem;
     box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
-    max-width: 500px;
-    width: 90%;
-    max-height: 90vh;
+    max-width: 620px;
+    width: 95%;
+    max-height: 92vh;
     overflow-y: auto;
 }
 
@@ -345,12 +344,14 @@
 }
 
 .modal-body {
-    padding: 2rem 1.5rem;
+    padding: 1.5rem 1.25rem;
+    display: grid;
+    gap: 1rem;
 }
 
 .session-summary {
     display: grid;
-    grid-template-columns: repeat(3, 1fr);
+    grid-template-columns: repeat(3, minmax(0, 1fr));
     gap: 1rem;
     margin-bottom: 1.5rem;
 }
@@ -360,6 +361,100 @@
     padding: 1rem;
     background: #f3f4f6;
     border-radius: 1rem;
+}
+
+.feedback-overview,
+.feedback-block {
+    display: grid;
+    gap: 0.75rem;
+}
+
+.feedback-block {
+    padding: 1rem 1.25rem;
+}
+
+.feedback-label,
+.feedback-text,
+.feedback-empty,
+#recommendation-text {
+    margin: 0;
+}
+
+.feedback-text {
+    color: #334155;
+    line-height: 1.7;
+}
+
+.feedback-list {
+    list-style: disc;
+    margin: 0;
+    margin-left: 1.2rem;
+    padding-left: 0.35rem;
+    color: #334155;
+}
+
+.feedback-list li {
+    margin-bottom: 0.5rem;
+}
+
+.feedback-overview {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 0.85rem;
+    margin-bottom: 1.25rem;
+}
+
+.feedback-card {
+    background: #f8fafc;
+    border-radius: 1rem;
+    padding: 0.95rem;
+    border: 1px solid #e2e8f0;
+}
+
+.feedback-label {
+    margin: 0;
+    color: #475569;
+    font-size: 0.9rem;
+    font-weight: 600;
+}
+
+.feedback-value {
+    margin: 0.75rem 0 0;
+    font-size: 1.2rem;
+    font-weight: 700;
+    color: #1d4ed8;
+}
+
+.feedback-block {
+    margin-bottom: 1rem;
+    padding: 0.95rem;
+    background: #ffffff;
+    border-radius: 1rem;
+    border: 1px solid #e5e7eb;
+}
+
+.feedback-block h4 {
+    margin: 0 0 0.75rem;
+    color: #0f172a;
+    font-size: 1rem;
+}
+
+.feedback-block p {
+    margin: 0;
+    color: #334155;
+    line-height: 1.6;
+}
+
+.feedback-list {
+    list-style: disc;
+    margin: 0;
+    margin-left: 1.25rem;
+    color: #334155;
+}
+
+.feedback-empty {
+    margin: 0;
+    color: #64748b;
 }
 
 .stat-label {
@@ -464,5 +559,52 @@
     to {
         transform: translateX(400px);
         opacity: 0;
+    }
+}
+
+.modal {
+    backdrop-filter: blur(6px);
+}
+
+.modal-content {
+    animation: modalPop 0.25s ease;
+}
+
+.modal-header {
+    position: sticky;
+    top: 0;
+    z-index: 2;
+}
+
+.summary-stat {
+    box-shadow: inset 0 0 0 1px #e5e7eb;
+}
+
+.feedback-block {
+    box-shadow: 0 6px 18px rgba(15, 23, 42, 0.06);
+}
+
+.feedback-list li {
+    background: #fff7ed;
+    border-left: 4px solid #f97316;
+    padding: 0.75rem;
+    border-radius: 0.65rem;
+    list-style: none;
+}
+
+.feedback-list {
+    list-style: none;
+    margin-left: 0;
+    padding-left: 0;
+}
+
+@keyframes modalPop {
+    from {
+        opacity: 0;
+        transform: translateY(14px) scale(0.98);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0) scale(1);
     }
 }

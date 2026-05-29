@@ -1,0 +1,39 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<title>Diagnóstico inicial</title>
+<link rel="stylesheet" href="/styles.css">
+<link rel="stylesheet" href="/header.css">
+<link rel="stylesheet" href="/diagnostico.css">
+</head>
+
+<body>
+<div id="app-header"></div>
+
+<main class="main-content">
+    <div class="reading-card">
+        <div class="reading-hero">
+            <div class="reading-emoji">🧠</div>
+            <div>
+                <h2>Diagnóstico inicial de comprensión lectora</h2>
+                <p>Responde estas preguntas para asignarte tu primer nivel.</p>
+            </div>
+        </div>
+
+        <div class="reading-body">
+            <p id="diagnostic-text">
+                Lee el siguiente texto y responde las preguntas.
+            </p>
+
+            <div id="diagnostic-questions"></div>
+
+            <button id="submit-diagnostic">✅ Finalizar diagnóstico</button>
+        </div>
+    </div>
+</main>
+
+<script src="header.js"></script>
+<script src="diagnostico.js"></script>
+</body>
+</html>
