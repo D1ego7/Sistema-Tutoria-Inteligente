@@ -271,3 +271,126 @@
     color: #6b7280;
     margin-bottom: 1rem;
 }
+
+/* ==========================================
+   ENCABEZADO DE LECTURAS
+========================================== */
+
+.section-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-end;
+    gap: 1.5rem;
+    margin-bottom: 2rem;
+}
+
+.section-header h2 {
+    margin-bottom: 0.5rem;
+}
+
+.section-header p {
+    color: #6b7280;
+    margin: 0;
+}
+
+/* ==========================================
+   FILTRO DE NIVEL
+========================================== */
+
+.level-filter-box {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+    min-width: 260px;
+}
+
+.level-filter-box label {
+    font-size: 0.9rem;
+    font-weight: 700;
+    color: #475569;
+}
+
+#level-filter {
+    appearance: none;
+    -webkit-appearance: none;
+    -moz-appearance: none;
+
+    width: 100%;
+
+    background: white;
+
+    border: 1px solid #dbe4f0;
+    border-radius: 16px;
+
+    padding: 14px 48px 14px 18px;
+
+    font-size: 15px;
+    font-weight: 700;
+    color: #4338ca;
+
+    cursor: pointer;
+
+    box-shadow:
+        0 4px 12px rgba(15, 23, 42, 0.06);
+
+    transition: all 0.25s ease;
+}
+
+#level-filter:hover {
+    border-color: #a5b4fc;
+
+    box-shadow:
+        0 8px 22px rgba(99, 102, 241, 0.12);
+}
+
+#level-filter:focus {
+    outline: none;
+
+    border-color: #818cf8;
+
+    box-shadow:
+        0 0 0 4px rgba(129, 140, 248, 0.15),
+        0 8px 22px rgba(99, 102, 241, 0.12);
+}
+
+/* Flecha */
+
+.level-filter-box::after {
+    content: "▼";
+    position: absolute;
+    right: 18px;
+    bottom: 15px;
+    font-size: 1.1rem;
+    font-weight: 900;
+    color: #4f46e5;
+    pointer-events: none;
+    transition: all 0.25s ease;
+}
+
+.level-filter-box:hover::after {
+    color: #3730a3;
+    transform: scale(1.15);
+}
+
+/* Opciones */
+
+#level-filter option {
+    font-weight: 600;
+    color: #1e293b;
+    background: white;
+}
+
+/* Responsive */
+
+@media (max-width: 768px) {
+
+    .section-header {
+        flex-direction: column;
+        align-items: stretch;
+    }
+
+    .level-filter-box {
+        width: 100%;
+    }
+}

@@ -118,7 +118,7 @@ def obtener_texto(id_texto):
 @app.route("/textos")
 @jwt_required()
 def obtener_textos():
-    """Obtiene textos filtrados según el nivel actual del estudiante"""
+    """Obtiene textos según el nivel actual o un nivel anterior permitido"""
     try:
         id_usuario = int(get_jwt_identity())
 
@@ -138,13 +138,28 @@ def obtener_textos():
         id_estudiante = estudiante["id_estudiante"]
 
         nivel_actual = obtener_nivel_actual(id_estudiante)
+        nivel_solicitado = request.args.get("nivel", nivel_actual)
+
+        niveles = ["literal", "inferencial", "crítico"]
+
+        if nivel_actual not in niveles:
+            nivel_actual = "literal"
+
+        if nivel_solicitado not in niveles:
+            nivel_solicitado = nivel_actual
+
+        indice_actual = niveles.index(nivel_actual)
+        niveles_permitidos = niveles[:indice_actual + 1]
+
+        if nivel_solicitado not in niveles_permitidos:
+            nivel_solicitado = nivel_actual
 
         cursor.execute("""
             SELECT id_texto, titulo, contenido, nivel
             FROM textos
             WHERE LOWER(TRIM(nivel)) = LOWER(TRIM(%s))
             ORDER BY id_texto DESC
-        """, (nivel_actual,))
+        """, (nivel_solicitado,))
 
         textos = cursor.fetchall()
 
@@ -153,6 +168,8 @@ def obtener_textos():
 
         return jsonify({
             "nivel_actual": nivel_actual,
+            "nivel_mostrado": nivel_solicitado,
+            "niveles_permitidos": niveles_permitidos,
             "textos": textos
         }), 200
 

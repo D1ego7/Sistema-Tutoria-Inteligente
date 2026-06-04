@@ -54,10 +54,17 @@ function capitalize(text) {
     return text.charAt(0).toUpperCase() + text.slice(1);
 }
 
-async function loadTexts() {
+async function loadTexts(nivelSeleccionado = "actual") {
     const token = localStorage.getItem("token");
+
     try {
-        const res = await fetch("http://127.0.0.1:5000/textos", {
+        let url = "http://127.0.0.1:5000/textos";
+
+        if (nivelSeleccionado !== "actual") {
+            url += `?nivel=${encodeURIComponent(nivelSeleccionado)}`;
+        }
+
+        const res = await fetch(url, {
             headers: {
                 "Authorization": `Bearer ${token}`
             }
@@ -70,10 +77,51 @@ async function loadTexts() {
         }
 
         const data = await res.json();
-        displayTexts(data.textos);
+
+        llenarComboNiveles(
+            data.niveles_permitidos || [],
+            data.nivel_actual || "literal",
+            data.nivel_mostrado || data.nivel_actual || "literal",
+            nivelSeleccionado
+        );
+
+        displayTexts(data.textos || []);
+
     } catch (err) {
         console.error("Error cargando textos:", err);
     }
+}
+
+function llenarComboNiveles(nivelesPermitidos, nivelActual, nivelMostrado, nivelSeleccionado) {
+    const select = document.getElementById("level-filter");
+
+    if (!select) return;
+
+    const valorActualPrevio = select.value || "actual";
+
+    select.innerHTML = "";
+
+    const optionActual = document.createElement("option");
+    optionActual.value = "actual";
+    optionActual.textContent = `Nivel actual (${formatNivel(nivelActual)})`;
+    select.appendChild(optionActual);
+
+    nivelesPermitidos.forEach(nivel => {
+        const option = document.createElement("option");
+        option.value = nivel;
+        option.textContent = formatNivel(nivel);
+        select.appendChild(option);
+    });
+
+    if (nivelSeleccionado === "actual") {
+        select.value = "actual";
+    } else {
+        select.value = nivelMostrado;
+    }
+
+    select.onchange = function () {
+        loadTexts(this.value);
+    };
 }
 
 function displayTexts(texts) {
