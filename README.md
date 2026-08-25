@@ -1,6 +1,6 @@
 # TutoriaInteligente
 
-Proyecto base para un sistema web con Flask y MariaDB.
+Proyecto base para un sistema web
 
 ## Configuración
 

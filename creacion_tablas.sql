@@ -4,7 +4,7 @@
 -- Ejecutar después de crear las tablas con creacion_bd.sql
 -- ===========================================
 
--- ROLES
+--- ROLES
 CREATE TABLE roles (
   id_rol INT AUTO_INCREMENT PRIMARY KEY,
   nombre_rol VARCHAR(50)
