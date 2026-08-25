@@ -132,13 +132,26 @@ function displayTexts(texts) {
         const badgeLabel = getLevelLabel(text.nivel);
         const emoji = getEmojiForText(text.titulo);
         const readingTime = calculateReadingTime(text.contenido);
+        const isCompleted = text.completado === true;
         
         const card = document.createElement("div");
-        card.className = "text-card";
+        card.className = `text-card ${isCompleted ? 'text-card-completed' : ''}`;
+        
+        const buttonText = isCompleted 
+            ? '✅ Completado' 
+            : 'Leer y responder →';
+        const buttonClass = isCompleted 
+            ? 'btn-read btn-completed' 
+            : 'btn-read';
+        const buttonOnclick = isCompleted 
+            ? `selectText(${text.id_texto})` 
+            : `selectText(${text.id_texto})`;
+        
         card.innerHTML = `
             <div class="text-card-top">
                 <div class="text-emoji">${emoji}</div>
                 <span class="badge badge-${text.nivel}">${badgeLabel}</span>
+                ${isCompleted ? '<span class="completion-badge">✓</span>' : ''}
             </div>
             <h3>${text.titulo}</h3>
             <div class="text-meta">
@@ -147,7 +160,7 @@ function displayTexts(texts) {
                     <span>${readingTime} min</span>
                 </span>
             </div>
-            <button class="btn-read" onclick="selectText(${text.id_texto})">Leer y responder →</button>
+            <button class="${buttonClass}" onclick="${buttonOnclick}">${buttonText}</button>
         `;
         container.appendChild(card);
     });

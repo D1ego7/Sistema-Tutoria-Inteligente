@@ -162,6 +162,38 @@ def obtener_textos():
         """, (nivel_solicitado,))
 
         textos = cursor.fetchall()
+        
+        # Obtener información de textos completados
+        textos_con_estado = []
+        for texto in textos:
+            id_texto = texto["id_texto"]
+            
+            # Verificar si el estudiante ha respondido correctamente todas las preguntas del texto
+            cursor.execute("""
+                SELECT COUNT(*) as total_preguntas
+                FROM preguntas
+                WHERE id_texto = %s
+            """, (id_texto,))
+            total_preguntas = cursor.fetchone()["total_preguntas"]
+            
+            respuestas_correctas = 0
+            if total_preguntas > 0:
+                cursor.execute("""
+                    SELECT COUNT(DISTINCT re.id_pregunta) as correctas
+                    FROM respuestas_estudiante re
+                    JOIN preguntas p ON re.id_pregunta = p.id_pregunta
+                    WHERE p.id_texto = %s 
+                    AND re.id_estudiante = %s 
+                    AND re.es_correcta = TRUE
+                """, (id_texto, id_estudiante))
+                respuestas_correctas = cursor.fetchone()["correctas"]
+            
+            # Un texto está completado si tiene todas las respuestas correctas
+            completado = total_preguntas > 0 and respuestas_correctas == total_preguntas
+            
+            texto_con_estado = dict(texto)
+            texto_con_estado["completado"] = completado
+            textos_con_estado.append(texto_con_estado)
 
         cursor.close()
         conn.close()
@@ -170,7 +202,7 @@ def obtener_textos():
             "nivel_actual": nivel_actual,
             "nivel_mostrado": nivel_solicitado,
             "niveles_permitidos": niveles_permitidos,
-            "textos": textos
+            "textos": textos_con_estado
         }), 200
 
     except Exception as e:
@@ -246,8 +278,7 @@ def login():
             try:
                 password_matches = bcrypt.checkpw(password_bytes, stored_password.encode('utf-8'))
             except ValueError:
-                # Si la contraseña en la base de datos no está hasheada,
-                # comparamos directamente el texto.
+                # Si la contraseña en la base de datos no está hasheada, comparamos directamente el texto.
                 password_matches = password == stored_password
 
             if password_matches:
