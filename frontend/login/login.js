@@ -45,20 +45,22 @@ async function login() {
             localStorage.setItem("token", data.access_token);
             localStorage.setItem("user", JSON.stringify(data.user));
 
-            // Verificar si ya tiene diagnóstico
-            const estadoRes = await fetch("http://127.0.0.1:5000/diagnostico-estado", {
-                method: "GET",
-                headers: {
-                    "Authorization": `Bearer ${data.access_token}`
-                }
-            });
+            if (data.user.rol !== 1) {
+                window.location.href = "menu.html";
+                return;
+            }
 
+            const estadoRes = await fetch("/diagnostico-estado", {
+                headers: { "Authorization": `Bearer ${data.access_token}` }
+            });
             const estado = await estadoRes.json();
 
             if (estadoRes.ok && estado.tiene_diagnostico === false) {
                 window.location.href = "diagnostico.html";
+            } else if (estadoRes.ok && estado.tiene_diagnostico === true) {
+                window.location.href = "dashboard.html";
             } else {
-                window.location.href = "menu.html";
+                error.textContent = estado.error || "No se pudo validar el diagnóstico";
             }
         } else {
             error.textContent = data.error || "Error al iniciar sesión";

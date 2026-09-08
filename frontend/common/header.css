@@ -14,6 +14,8 @@
     max-width: 1400px;
     margin: 0 auto;
     width: 100%;
+    min-height: 72px;
+    box-sizing: border-box;
     display: flex;
     justify-content: space-between;
     align-items: center;
@@ -54,16 +56,76 @@
 .user-info {
     display: flex;
     align-items: center;
-    gap: 0.75rem;
+    gap: 0.9rem;
+}
+
+.student-nav {
+    display: flex;
+    align-items: center;
+    gap: 0.2rem;
+    padding: 0.25rem;
+    border: 1px solid #e5edfb;
+    border-radius: 0.85rem;
+    background: #f8fbff;
+}
+
+.student-nav a {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.4rem;
+    color: #315aa7;
+    text-decoration: none;
+    min-height: 34px;
+    box-sizing: border-box;
+    padding: 0.45rem 0.8rem;
+    border: 1px solid transparent;
+    border-radius: 0.6rem;
+    font-size: 0.86rem;
+    font-weight: 700;
+    transition: background-color 0.2s ease, color 0.2s ease, box-shadow 0.2s ease, border-color 0.2s ease;
+}
+
+.student-nav a:hover {
+    background: #edf4ff;
+    color: #1d4ed8;
+    border-color: #d7e6ff;
+}
+
+.student-nav a.active {
+    background: white;
+    border-color: #c8dcff;
+    color: #1d4ed8;
+    box-shadow: 0 3px 9px rgba(37, 99, 235, 0.12);
+}
+
+.user-profile {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    min-height: 36px;
+    padding: 0.35rem 0.75rem 0.35rem 0.45rem;
+    border: 1px solid #e7edf7;
+    border-radius: 9999px;
+    background: #f8fafc;
+    color: #334155;
+}
+
+.user-avatar {
+    display: grid;
+    place-items: center;
+    width: 27px;
+    height: 27px;
+    border-radius: 50%;
+    background: #e7efff;
+    color: #3367c7;
+    font-size: 0.86rem;
 }
 
 #user-greeting {
-    background: #f3f4f6;
-    padding: 0.5rem 1rem;
-    border-radius: 9999px;
     font-size: 0.875rem;
     font-weight: 600;
-    color: #374151;
+    white-space: nowrap;
 }
 
 #logout-btn {
@@ -77,7 +139,57 @@
     padding: 0.65rem 1rem;
     border-radius: 9999px;
     font-weight: 600;
+    min-height: 36px;
+    box-sizing: border-box;
     transition: background-color 0.2s ease, transform 0.2s ease;
+}
+
+@media (max-width: 760px) {
+    .header-content {
+        padding: 0.8rem 1rem;
+    }
+
+    .student-nav {
+        gap: 0;
+    }
+
+    .student-nav a {
+        min-height: 32px;
+        padding: 0.35rem 0.5rem;
+        font-size: 0.75rem;
+    }
+
+    .user-profile {
+        padding-right: 0.45rem;
+    }
+
+    #user-greeting {
+        max-width: 110px;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
+}
+
+@media (max-width: 560px) {
+    .header-content {
+        align-items: flex-start;
+        flex-direction: column;
+        gap: 0.7rem;
+    }
+
+    .user-info {
+        width: 100%;
+        justify-content: space-between;
+        gap: 0.5rem;
+    }
+
+    .student-nav {
+        flex: 1;
+    }
+
+    .student-nav a {
+        flex: 1;
+    }
 }
 
 #logout-btn:hover {

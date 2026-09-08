@@ -228,10 +228,14 @@ def detectar_patrones_error(id_estudiante, limite_respuestas=20):
         
         # Obtener respuestas incorrectas recientes con tiempo de respuesta
         query = """
-            SELECT p.id_pregunta, p.enunciado, p.tipo, re.respuesta, rc.respuesta as respuesta_correcta, re.tiempo_respuesta
+            SELECT p.id_pregunta, p.enunciado, p.tipo, re.respuesta,
+                   COALESCE(rc.respuesta, op.texto_opcion) AS respuesta_correcta,
+                   re.tiempo_respuesta
             FROM respuestas_estudiante re
             JOIN preguntas p ON re.id_pregunta = p.id_pregunta
-            JOIN respuestas_correctas rc ON p.id_pregunta = rc.id_pregunta
+            LEFT JOIN respuestas_correctas rc ON p.id_pregunta = rc.id_pregunta
+            LEFT JOIN opciones_pregunta op
+                ON p.id_pregunta = op.id_pregunta AND op.es_correcta = TRUE
             WHERE re.id_estudiante = %s AND re.es_correcta = FALSE
             ORDER BY re.fecha DESC
             LIMIT %s

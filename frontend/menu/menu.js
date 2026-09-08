@@ -36,6 +36,10 @@ async function loadProgress() {
             }
         });
 
+        if (res.status === 403) {
+            window.location.href = "/diagnostico.html";
+            return;
+        }
         if (res.status === 401) {
             localStorage.removeItem("token");
             window.location.href = "/";
@@ -43,7 +47,7 @@ async function loadProgress() {
         }
 
         const data = await res.json();
-        displayProgressFromBackend(data);
+        mostrarProgreso(data);
 
     } catch (err) {
         console.error("Error cargando progreso:", err);
@@ -70,6 +74,10 @@ async function loadTexts(nivelSeleccionado = "actual") {
             }
         });
 
+        if (res.status === 403) {
+            window.location.href = "/diagnostico.html";
+            return;
+        }
         if (res.status === 401) {
             localStorage.removeItem("token");
             window.location.href = "/";
@@ -182,71 +190,10 @@ function getUserId() {
     return user.id;
 }
 
-function displayProgressFromBackend(data) {
-    if (!data || !data.evaluacion) {
-        console.error("Datos inválidos:", data);
-        return;
-    }
-
-    const evaluacion = data.evaluacion;
-
-    const correct = evaluacion.respuestas_correctas || 0;
-    const total = evaluacion.total_respuestas || 0;
-    const pct = total === 0 ? 0 : Math.round((correct / total) * 100);
-
-    // Nivel
-    const nivel = data.nivel_actual || "literal";
-    document.getElementById("level-badge").textContent = formatNivel(nivel);
-
-    // Aciertos
-    document.getElementById("score-text").textContent =
-        `${correct} / ${total} · ${pct}%`;
-
-    // Barra
-    document.getElementById("progress-bar").style.width = `${pct}%`;
-
-    // Recomendación
-    document.getElementById("recommendation").textContent =
-        data.recomendacion_siguiente?.razon || "Sigue respondiendo para mejorar.";
-}
-
-function formatNivel(nivel) {
-    if (nivel === "literal") return "Literal";
-    if (nivel === "inferencial") return "Inferencial";
-    if (nivel === "crítico" || nivel === "critico") return "Crítico";
-    return nivel;
-}
-
-// Función para calcular tiempo de lectura estimado (palabras / 200)
+// Funcion para calcular tiempo de lectura estimado (palabras / 200)
 function calculateReadingTime(content) {
     if (!content) return 3;
     const wordCount = content.trim().split(/\s+/).length;
     const minutes = Math.ceil(wordCount / 200);
     return Math.max(1, Math.min(minutes, 15)); // Entre 1 y 15 minutos
-}
-
-// Función para asignar emojis según el título del texto
-function getEmojiForText(titulo) {
-    const emojiMap = {
-        "zorro": "🦊",
-        "león": "🦁",
-        "ratón": "🐭",
-        "uva": "🦊",
-        "aventura": "🚣",
-        "río": "🚣",
-        "árbol": "🌳",
-        "sombra": "🌳",
-        "dato": "📚",
-        "leído": "📖",
-        "fábula": "📖"
-    };
-    
-    const titulo_lower = titulo.toLowerCase();
-    for (let key in emojiMap) {
-        if (titulo_lower.includes(key)) {
-            return emojiMap[key];
-        }
-    }
-    
-    return "📖"; // Emoji por defecto
 }

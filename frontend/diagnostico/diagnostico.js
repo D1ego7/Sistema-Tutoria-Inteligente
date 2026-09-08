@@ -100,5 +100,5 @@ async function enviarDiagnostico() {
     }
 
     alert(`Diagnóstico completado. Tu nivel inicial es: ${data.nivel_inicial}`);
-    window.location.href = "menu.html";
+    window.location.href = "dashboard.html";
 }

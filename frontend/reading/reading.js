@@ -34,21 +34,13 @@ document.addEventListener("DOMContentLoaded", function () {
 
     document.getElementById("submit-answers").addEventListener("click", async function () {
         const token = localStorage.getItem("token");
-        const inputs = document.querySelectorAll(".question-card input");
+        const questionCards = [...document.querySelectorAll(".question-card")];
+        const respuestas = questionCards.map(obtenerRespuestaDePregunta);
 
-        // Validar que todas las preguntas sean respondidas
-        let allAnswered = true;
-        for (let input of inputs) {
-            const respuesta = input.value.trim();
-            if (!respuesta) {
-                allAnswered = false;
-                input.style.borderColor = "#ef4444";
-                break;
-            }
-            input.style.borderColor = "#d1d5db";
-        }
-
-        if (!allAnswered) {
+        if (respuestas.some(respuesta => !respuesta)) {
+            questionCards.forEach((card, index) => {
+                card.classList.toggle("question-unanswered", !respuestas[index]);
+            });
             showToast("Debes responder todas las preguntas", false);
             return;
         }
@@ -56,9 +48,8 @@ document.addEventListener("DOMContentLoaded", function () {
         let enviadas = 0;
         let correctas = 0;
 
-        for (let input of inputs) {
-            const respuesta = input.value.trim();
-            const id_pregunta = input.id.replace("q-", "");
+        for (const respuestaPregunta of respuestas) {
+            const { idPregunta, respuesta, idOpcion } = respuestaPregunta;
 
             try {
                 const res = await fetch("http://127.0.0.1:5000/respuesta-con-feedback", {
@@ -68,8 +59,9 @@ document.addEventListener("DOMContentLoaded", function () {
                         "Authorization": `Bearer ${token}`
                     },
                     body: JSON.stringify({
-                        id_pregunta: parseInt(id_pregunta),
+                        id_pregunta: idPregunta,
                         respuesta: respuesta,
+                        id_opcion: idOpcion,
                         tiempo_respuesta: 10
                     })
                 });
@@ -144,11 +136,9 @@ function showSummaryModal(answered, correct, feedbackData) {
     const errorsContainer = document.getElementById("feedback-errors");
     errorsContainer.innerHTML = "";
     if (feedbackData?.errores_detectados?.length > 0) {
-        const questionInputs = document.querySelectorAll(".question-card input");
         const questionIndexById = {};
-        questionInputs.forEach((input, index) => {
-            const id = input.id.replace("q-", "");
-            questionIndexById[id] = index + 1;
+        document.querySelectorAll(".question-card").forEach((card, index) => {
+            questionIndexById[card.dataset.idPregunta] = index + 1;
         });
 
         const list = document.createElement("ul");
@@ -248,27 +238,29 @@ async function loadPreviousAnswers(textId) {
 
             // Prellenar inputs con las respuestas
             for (const idPregunta in respuestas) {
-                const input = document.getElementById(`q-${idPregunta}`);
-                if (input) {
-                    input.value = respuestas[idPregunta].respuesta;
+                const card = document.querySelector(`[data-id-pregunta="${idPregunta}"]`);
+                if (!card) continue;
 
-                    if (respuestas[idPregunta].es_correcta) {
-                        // CORRECTAS en verde
-                        input.style.backgroundColor = "#d1fae5";
-                        input.style.borderColor = "#10b981";
-                        input.style.color = "#065f46";
-                        input.disabled = true;
-                        input.dataset.correcta = "true";
-                        respuestasCorrectas++;
-                    } else {
-                        // INCORRECTAS en rojo
-                        input.style.backgroundColor = "#fee2e2";
-                        input.style.borderColor = "#ef4444";
-                        input.style.color = "#991b1b";
-                        input.disabled = true;
-                        input.dataset.correcta = "false";
-                        respuestasIncorrectas++;
-                    }
+                const respuesta = respuestas[idPregunta];
+                const input = card.querySelector("input[type='text']");
+                const radios = [...card.querySelectorAll("input[type='radio']")];
+
+                if (input) {
+                    input.value = respuesta.respuesta;
+                } else {
+                    const radioSeleccionado = radios.find(radio => radio.dataset.textoOpcion === respuesta.respuesta);
+                    if (radioSeleccionado) radioSeleccionado.checked = true;
+                }
+
+                card.classList.add(respuesta.es_correcta ? "answer-correct" : "answer-incorrect");
+                card.querySelectorAll("input").forEach(control => {
+                    control.disabled = true;
+                });
+
+                if (respuesta.es_correcta) {
+                    respuestasCorrectas++;
+                } else {
+                    respuestasIncorrectas++;
                 }
             }
 
@@ -307,16 +299,15 @@ function showRetryButton() {
     retryBtn.addEventListener("click", function () {
         // Limpiar SOLO los inputs incorrectos (que no están deshabilitados)
         // Las respuestas correctas (deshabilitadas) permanecen intactas
-        const inputs = document.querySelectorAll(".question-card input");
-        inputs.forEach(input => {
-            // Si no está deshabilitado, es una respuesta incorrecta - limpiar
-            if (input.dataset.correcta === "false") {
-                input.value = "";
-                input.style.backgroundColor = "#ffffff";
-                input.style.borderColor = "#d1d5db";
-                input.style.color = "#000000";
-                input.dataset.correcta = "false";
-                input.disabled = false;
+        const questionCards = document.querySelectorAll(".question-card");
+        questionCards.forEach(card => {
+            if (card.classList.contains("answer-incorrect")) {
+                card.querySelectorAll("input").forEach(input => {
+                    input.value = "";
+                    input.checked = false;
+                    input.disabled = false;
+                });
+                card.classList.remove("answer-incorrect", "question-unanswered");
             }
         });
         // Mostrar botón de enviar de nuevo y ocultar retry
@@ -351,6 +342,7 @@ async function loadText(id) {
 
         const text = await res.json();
         document.getElementById("text-title").textContent = text.titulo;
+        document.getElementById("reading-emoji").textContent = getEmojiForText(text.titulo);
         document.getElementById("text-body").textContent = text.contenido;
     } catch (err) {
         console.error("Error cargando texto:", err);
@@ -375,13 +367,81 @@ function displayQuestions(questions) {
     const container = document.getElementById("questions-list");
     container.innerHTML = "";
 
+    questions.sort((a, b) => (a.orden || 0) - (b.orden || 0));
+
     questions.forEach((q, idx) => {
         const div = document.createElement("div");
         div.className = "question-card";
-        div.innerHTML = `
-            <p class="question-label"><strong>${idx + 1}.</strong> ${q.enunciado}</p>
-            <input type="text" id="q-${q.id_pregunta}" placeholder="Tu respuesta">
-        `;
+        div.dataset.idPregunta = q.id_pregunta;
+        div.dataset.tipoRespuesta = q.tipo_respuesta;
+
+        const label = document.createElement("p");
+        label.className = "question-label";
+        label.innerHTML = `<strong>${q.orden || idx + 1}.</strong> ${escaparHtml(q.enunciado)}`;
+        div.appendChild(label);
+
+        if (q.tipo_respuesta === "opcion") {
+            const optionsContainer = document.createElement("div");
+            optionsContainer.className = "question-options";
+
+            (q.opciones || []).forEach(opcion => {
+                const optionLabel = document.createElement("label");
+                optionLabel.className = "option-card";
+                optionLabel.innerHTML = `
+                    <input type="radio" name="q-${q.id_pregunta}" value="${opcion.id_opcion}" data-texto-opcion="${escaparAtributo(opcion.texto_opcion)}">
+                    <span class="option-marker"></span>
+                    <span class="option-text">${escaparHtml(opcion.texto_opcion)}</span>
+                `;
+                optionsContainer.appendChild(optionLabel);
+            });
+
+            div.appendChild(optionsContainer);
+        } else {
+            const input = document.createElement("input");
+            input.type = "text";
+            input.id = `q-${q.id_pregunta}`;
+            input.placeholder = "Tu respuesta";
+            div.appendChild(input);
+        }
+
         container.appendChild(div);
     });
+}
+
+function obtenerRespuestaDePregunta(card) {
+    const idPregunta = Number(card.dataset.idPregunta);
+    const radio = card.querySelector("input[type='radio']:checked");
+
+    if (radio) {
+        return {
+            idPregunta,
+            idOpcion: Number(radio.value),
+            respuesta: radio.dataset.textoOpcion
+        };
+    }
+
+    const input = card.querySelector("input[type='text']");
+    if (input && input.value.trim()) {
+        return {
+            idPregunta,
+            idOpcion: null,
+            respuesta: input.value.trim()
+        };
+    }
+
+    return null;
+}
+
+function escaparHtml(texto) {
+    const elemento = document.createElement("div");
+    elemento.textContent = texto || "";
+    return elemento.innerHTML;
+}
+
+function escaparAtributo(texto) {
+    return String(texto || "")
+        .replace(/&/g, "&amp;")
+        .replace(/"/g, "&quot;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;");
 }

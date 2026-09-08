@@ -25,6 +25,21 @@ app = Flask(__name__)
 app.config['JWT_SECRET_KEY'] = os.getenv('JWT_SECRET_KEY', 'tu_clave_secreta_aqui')
 jwt = JWTManager(app)
 
+def estudiante_tiene_diagnostico(id_usuario):
+    conn, cursor = get_db_cursor()
+    try:
+        cursor.execute("""
+            SELECT 1
+            FROM estudiantes e
+            JOIN diagnostico d ON d.id_estudiante = e.id_estudiante
+            WHERE e.id_usuario = %s
+            LIMIT 1
+        """, (id_usuario,))
+        return cursor.fetchone() is not None
+    finally:
+        cursor.close()
+        conn.close()
+
 @app.route("/")
 def index():
     return send_from_directory("frontend/login", "login.html")
@@ -55,15 +70,23 @@ def login_js():
 
 @app.route("/dashboard.html")
 def dashboard():
-    return send_from_directory("frontend/menu", "menu.html")
+    return send_from_directory("frontend/dashboard", "dashboard.html")
+
+@app.route("/inicio")
+def inicio():
+    return send_from_directory("frontend/dashboard", "dashboard.html")
+
+@app.route("/dashboard.css")
+def dashboard_css():
+    return send_from_directory("frontend/dashboard", "dashboard.css")
+
+@app.route("/dashboard.js")
+def dashboard_js():
+    return send_from_directory("frontend/dashboard", "dashboard.js")
 
 @app.route("/menu.html")
 def menu_html():
     return send_from_directory("frontend/menu", "menu.html")
-
-@app.route("/dashboard.js")
-def dashboard_js():
-    return send_from_directory("frontend/menu", "menu.js")
 
 @app.route("/menu.js")
 def menu_js():
@@ -80,6 +103,14 @@ def reading_js():
 @app.route("/header.js")
 def header_js():
     return send_from_directory("frontend/common", "header.js")
+
+@app.route("/progress.js")
+def progress_js():
+    return send_from_directory("frontend/common", "progress.js")
+
+@app.route("/reading-icons.js")
+def reading_icons_js():
+    return send_from_directory("frontend/common", "reading-icons.js")
 
 @app.route("/header.html")
 def header_html():
@@ -102,6 +133,11 @@ def diagnostico_css():
 def obtener_texto(id_texto):
     """Obtiene un texto específico (requiere autenticación)"""
     try:
+        claims = get_jwt()
+        id_usuario = int(get_jwt_identity())
+        if claims.get('rol') == 1 and not estudiante_tiene_diagnostico(id_usuario):
+            return jsonify({"error": "Debes completar el diagnóstico inicial"}), 403
+
         conn, cursor = get_db_cursor()
         cursor.execute("SELECT id_texto, titulo, contenido, nivel FROM textos WHERE id_texto = %s", (id_texto,))
         texto = cursor.fetchone()
@@ -134,6 +170,11 @@ def obtener_textos():
             cursor.close()
             conn.close()
             return jsonify({"error": "El usuario no es estudiante"}), 400
+
+        if not estudiante_tiene_diagnostico(id_usuario):
+            cursor.close()
+            conn.close()
+            return jsonify({"error": "Debes completar el diagnóstico inicial"}), 403
 
         id_estudiante = estudiante["id_estudiante"]
 
@@ -303,6 +344,11 @@ def protected():
 def obtener_preguntas(id_texto):
     """Obtiene todas las preguntas de un texto específico (requiere autenticación)"""
     try:
+        claims = get_jwt()
+        id_usuario = int(get_jwt_identity())
+        if claims.get('rol') == 1 and not estudiante_tiene_diagnostico(id_usuario):
+            return jsonify({"error": "Debes completar el diagnóstico inicial"}), 403
+
         if id_texto <= 0:
             return jsonify({"error": "ID de texto inválido"}), 400
         
@@ -315,8 +361,38 @@ def obtener_preguntas(id_texto):
             conn.close()
             return jsonify({"error": "Texto no encontrado"}), 404
         
-        cursor.execute("SELECT id_pregunta, id_texto, enunciado, tipo FROM preguntas WHERE id_texto = %s", (id_texto,))
-        preguntas = cursor.fetchall()
+        cursor.execute("""
+            SELECT p.id_pregunta, p.id_texto, p.enunciado, p.tipo,
+                   p.tipo_respuesta, p.orden,
+                   o.id_opcion, o.texto_opcion
+            FROM preguntas p
+            LEFT JOIN opciones_pregunta o ON o.id_pregunta = p.id_pregunta
+            WHERE p.id_texto = %s
+            ORDER BY p.orden, p.id_pregunta, o.id_opcion
+        """, (id_texto,))
+        filas = cursor.fetchall()
+        preguntas_por_id = {}
+        for fila in filas:
+            id_pregunta = fila['id_pregunta']
+            if id_pregunta not in preguntas_por_id:
+                preguntas_por_id[id_pregunta] = {
+                    "id_pregunta": id_pregunta,
+                    "id_texto": fila['id_texto'],
+                    "enunciado": fila['enunciado'],
+                    "tipo": fila['tipo'],
+                    "tipo_respuesta": fila['tipo_respuesta'],
+                    "orden": fila['orden']
+                }
+                if fila['tipo_respuesta'] == 'opcion':
+                    preguntas_por_id[id_pregunta]['opciones'] = []
+
+            if fila['tipo_respuesta'] == 'opcion' and fila['id_opcion'] is not None:
+                preguntas_por_id[id_pregunta]['opciones'].append({
+                    "id_opcion": fila['id_opcion'],
+                    "texto_opcion": fila['texto_opcion']
+                })
+
+        preguntas = list(preguntas_por_id.values())
         cursor.close()
         conn.close()
         
@@ -701,9 +777,10 @@ def responder_con_feedback():
         
         id_pregunta = data.get('id_pregunta')
         respuesta = data.get('respuesta')
+        id_opcion = data.get('id_opcion')
         tiempo_respuesta = data.get('tiempo_respuesta', 0)
         
-        if not id_pregunta or respuesta is None:
+        if not id_pregunta or (respuesta is None and not id_opcion):
             return jsonify({"error": "id_pregunta y respuesta son requeridos"}), 400
         
         conn, cursor = get_db_cursor()
@@ -719,9 +796,9 @@ def responder_con_feedback():
         
         id_estudiante = estudiante['id_estudiante']
         
-        # Obtener tipo de pregunta y respuesta correcta
+        # Obtener el tipo de pregunta y validar su respuesta contra la BD.
         cursor.execute("""
-            SELECT p.tipo, rc.respuesta 
+            SELECT p.tipo, p.tipo_respuesta, rc.respuesta
             FROM preguntas p 
             LEFT JOIN respuestas_correctas rc ON p.id_pregunta = rc.id_pregunta 
             WHERE p.id_pregunta = %s
@@ -734,12 +811,41 @@ def responder_con_feedback():
             return jsonify({"error": "Pregunta no encontrada"}), 404
         
         tipo_pregunta = pregunta_info['tipo']
+        tipo_respuesta = pregunta_info['tipo_respuesta']
         respuesta_correcta = pregunta_info['respuesta']
-        
-        # Verificar si es correcta (con normalización de texto)
-        es_correcta = False
-        if respuesta_correcta and respuesta:
-            es_correcta = normalizar_texto(respuesta) == normalizar_texto(respuesta_correcta)
+
+        if tipo_respuesta == 'opcion':
+            if not id_opcion:
+                cursor.close()
+                conn.close()
+                return jsonify({"error": "Debes seleccionar una opción"}), 400
+
+            cursor.execute("""
+                SELECT texto_opcion, es_correcta
+                FROM opciones_pregunta
+                WHERE id_opcion = %s AND id_pregunta = %s
+            """, (id_opcion, id_pregunta))
+            opcion = cursor.fetchone()
+            if not opcion:
+                cursor.close()
+                conn.close()
+                return jsonify({"error": "La opción seleccionada no pertenece a la pregunta"}), 400
+
+            respuesta = opcion['texto_opcion']
+            cursor.execute("""
+                SELECT texto_opcion
+                FROM opciones_pregunta
+                WHERE id_pregunta = %s AND es_correcta = TRUE
+                LIMIT 1
+            """, (id_pregunta,))
+            opcion_correcta = cursor.fetchone()
+            respuesta_correcta = opcion_correcta['texto_opcion'] if opcion_correcta else ''
+            es_correcta = bool(opcion['es_correcta'])
+        else:
+            es_correcta = bool(
+                respuesta_correcta and respuesta and
+                normalizar_texto(respuesta) == normalizar_texto(respuesta_correcta)
+            )
         
         # Guardar respuesta
         cursor.execute("""INSERT INTO respuestas_estudiante
@@ -812,10 +918,13 @@ def feedback_sesion():
         id_estudiante = estudiante['id_estudiante']
 
         query = """
-            SELECT re.id_pregunta, re.respuesta, re.es_correcta, p.enunciado, p.tipo, rc.respuesta AS respuesta_correcta
+            SELECT re.id_pregunta, re.respuesta, re.es_correcta, p.enunciado, p.tipo,
+                   COALESCE(rc.respuesta, op.texto_opcion) AS respuesta_correcta
             FROM respuestas_estudiante re
             JOIN preguntas p ON re.id_pregunta = p.id_pregunta
             LEFT JOIN respuestas_correctas rc ON p.id_pregunta = rc.id_pregunta
+            LEFT JOIN opciones_pregunta op
+                ON p.id_pregunta = op.id_pregunta AND op.es_correcta = TRUE
             WHERE re.id_estudiante = %s AND p.id_texto = %s
               AND re.id_respuesta_est = (
                   SELECT MAX(re2.id_respuesta_est)
@@ -1089,6 +1198,170 @@ def obtener_progreso():
             "recomendacion_siguiente": recomendacion
         }), 200
 
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+@app.route('/api/estudiante/dashboard', methods=['GET'])
+@jwt_required()
+def obtener_dashboard_estudiante():
+    """Obtiene los datos agregados del dashboard del estudiante autenticado."""
+    try:
+        claims = get_jwt()
+        if claims.get('rol') != 1:
+            return jsonify({"error": "El dashboard solo está disponible para estudiantes"}), 403
+
+        id_usuario = int(get_jwt_identity())
+        conn, cursor = get_db_cursor()
+
+        cursor.execute(
+            "SELECT id_estudiante, nombre FROM usuarios u "
+            "JOIN estudiantes e ON e.id_usuario = u.id_usuario "
+            "WHERE u.id_usuario = %s",
+            (id_usuario,)
+        )
+        estudiante = cursor.fetchone()
+
+        if not estudiante:
+            cursor.close()
+            conn.close()
+            return jsonify({"error": "El usuario no es estudiante"}), 403
+
+        if not estudiante_tiene_diagnostico(id_usuario):
+            cursor.close()
+            conn.close()
+            return jsonify({
+                "error": "Debes completar el diagnóstico inicial",
+                "requiere_diagnostico": True
+            }), 403
+
+        id_estudiante = estudiante['id_estudiante']
+        evaluacion = calcular_puntuacion_estudiante(id_estudiante)
+        nivel_actual = obtener_nivel_actual(id_estudiante)
+
+        cursor.execute("""
+            SELECT t.id_texto, t.titulo, t.nivel, COUNT(DISTINCT p.id_pregunta) AS total_preguntas
+            FROM textos t
+            LEFT JOIN preguntas p ON p.id_texto = t.id_texto
+            GROUP BY t.id_texto, t.titulo, t.nivel
+            ORDER BY t.id_texto
+        """)
+        textos = cursor.fetchall()
+
+        cursor.execute("""
+            SELECT p.id_texto, re.id_pregunta, re.es_correcta, re.fecha, re.id_respuesta_est
+            FROM respuestas_estudiante re
+            JOIN preguntas p ON p.id_pregunta = re.id_pregunta
+            WHERE re.id_estudiante = %s
+            ORDER BY re.id_respuesta_est DESC
+        """, (id_estudiante,))
+        respuestas = cursor.fetchall()
+
+        cursor.execute("""
+            SELECT nivel_asignado, puntaje, fecha
+            FROM diagnostico
+            WHERE id_estudiante = %s
+            ORDER BY fecha DESC, id_diagnostico DESC
+            LIMIT 1
+        """, (id_estudiante,))
+        diagnostico = cursor.fetchone()
+
+        cursor.close()
+        conn.close()
+
+        respuestas_por_texto = {}
+        dias_estudio = set()
+        for respuesta in respuestas:
+            id_texto = respuesta['id_texto']
+            respuestas_por_texto.setdefault(id_texto, []).append(respuesta)
+            if respuesta['fecha']:
+                dias_estudio.add(str(respuesta['fecha']))
+
+        estado_textos = {}
+        for texto in textos:
+            id_texto = texto['id_texto']
+            respuestas_texto = respuestas_por_texto.get(id_texto, [])
+            respuestas_recientes = {}
+            correctas_historicas = set()
+
+            for respuesta in respuestas_texto:
+                if respuesta['es_correcta']:
+                    correctas_historicas.add(respuesta['id_pregunta'])
+                respuestas_recientes.setdefault(respuesta['id_pregunta'], respuesta)
+
+            total_preguntas = int(texto['total_preguntas'] or 0)
+            correctas_recientes = sum(
+                1 for respuesta in respuestas_recientes.values() if respuesta['es_correcta']
+            )
+            realizadas = len(respuestas_recientes)
+            porcentaje = round((correctas_recientes / realizadas) * 100, 2) if realizadas else 0
+            completada = total_preguntas > 0 and len(correctas_historicas) == total_preguntas
+
+            estado_textos[id_texto] = {
+                "titulo": texto['titulo'],
+                "nivel": texto['nivel'],
+                "completada": completada,
+                "porcentaje": porcentaje,
+                "fecha": str(respuestas_texto[0]['fecha']) if respuestas_texto else None
+            }
+
+        lecturas_completadas = sum(1 for texto in estado_textos.values() if texto['completada'])
+        actividad_reciente = [
+            {
+                "id_texto": id_texto,
+                "titulo": estado['titulo'],
+                "nivel": estado['nivel'],
+                "fecha": estado['fecha'],
+                "porcentaje": estado['porcentaje']
+            }
+            for id_texto, estado in sorted(
+                estado_textos.items(),
+                key=lambda item: item[1]['fecha'] or '',
+                reverse=True
+            )
+            if estado['fecha']
+        ][:3]
+
+        siguiente = next(
+            (
+                {"id_texto": texto['id_texto'], "titulo": texto['titulo'], "nivel": texto['nivel']}
+                for texto in textos
+                if (texto['nivel'] or '').strip().lower() == nivel_actual
+                and not estado_textos[texto['id_texto']]['completada']
+            ),
+            None
+        )
+        if siguiente is None:
+            siguiente = next(
+                (
+                    {"id_texto": texto['id_texto'], "titulo": texto['titulo'], "nivel": texto['nivel']}
+                    for texto in textos
+                    if (texto['nivel'] or '').strip().lower() == nivel_actual
+                ),
+                None
+            )
+
+        recomendacion = recomendar_nivel_siguiente(id_estudiante) if diagnostico else None
+
+        racha = 0
+        if dias_estudio:
+            from datetime import date, timedelta
+            dia = date.today()
+            while str(dia) in dias_estudio:
+                racha += 1
+                dia -= timedelta(days=1)
+
+        return jsonify({
+            "nombre": estudiante['nombre'],
+            "nivel_actual": nivel_actual,
+            "promedio_aciertos": evaluacion.get('porcentaje_acierto', 0),
+            "lecturas_completadas": lecturas_completadas,
+            "racha": racha,
+            "progreso": evaluacion,
+            "recomendacion": recomendacion,
+            "siguiente_lectura": siguiente,
+            "actividad_reciente": actividad_reciente,
+            "tiene_diagnostico": diagnostico is not None
+        }), 200
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
