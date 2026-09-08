@@ -6,7 +6,7 @@ import pymysql.cursors
 # Cargar variables de entorno
 load_dotenv()
 
-# Configuración de la base de datos
+# Configuración de la base de datos 
 db_config = {
     'host': os.getenv('DB_HOST'),
     'user': os.getenv('DB_USER'),
