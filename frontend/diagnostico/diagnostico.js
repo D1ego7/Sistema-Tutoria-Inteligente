@@ -11,39 +11,27 @@ document.addEventListener("DOMContentLoaded", function () {
     document.getElementById("submit-diagnostic").addEventListener("click", enviarDiagnostico);
 });
 
-const preguntasDiagnostico = [
-    {
-        id: 1,
-        pregunta: "¿Quién es el personaje principal del texto?",
-        correcta: "el ratón"
-    },
-    {
-        id: 2,
-        pregunta: "¿Dónde dormía el león?",
-        correcta: "bajo un árbol"
-    },
-    {
-        id: 3,
-        pregunta: "¿Por qué el león dejó libre al ratón?",
-        correcta: "porque el ratón le prometió ayudarlo"
-    },
-    {
-        id: 4,
-        pregunta: "¿Qué enseñanza deja la historia?",
-        correcta: "todos pueden ayudar sin importar su tamaño"
+let preguntasDiagnostico = [];
+
+async function cargarDiagnostico() {
+    const token = localStorage.getItem("token");
+    const res = await fetch("/diagnostico-preguntas", {
+        headers: { "Authorization": `Bearer ${token}` }
+    });
+    const data = await res.json();
+
+    if (res.status === 409) {
+        window.location.href = "/dashboard.html";
+        return;
     }
-];
+    if (!res.ok) {
+        alert(data.error || "No se pudo cargar el diagnóstico");
+        return;
+    }
 
-function cargarDiagnostico() {
-    const texto = `
-Un pequeño ratón despertó accidentalmente a un enorme león que dormía bajo un árbol.
-El león, furioso, atrapó al ratón entre sus garras. El ratón le rogó que lo dejara libre y prometió ayudarlo algún día.
-El león se rió, pero decidió soltarlo. Días después, el león cayó atrapado en una red.
-El ratón escuchó sus rugidos, corrió hacia él y mordió la red hasta liberarlo.
-Desde entonces, el león comprendió que hasta los más pequeños pueden ser de gran ayuda.
-`;
+    preguntasDiagnostico = data.preguntas || [];
 
-    document.getElementById("diagnostic-text").textContent = texto;
+    document.getElementById("diagnostic-text").textContent = data.texto || "";
 
     const container = document.getElementById("diagnostic-questions");
     container.innerHTML = "";
@@ -62,33 +50,28 @@ Desde entonces, el león comprendió que hasta los más pequeños pueden ser de 
 async function enviarDiagnostico() {
     const token = localStorage.getItem("token");
 
-    let respuestasBooleanas = [];
-    let preguntasIds = [];
+    const respuestas = [];
 
     for (const p of preguntasDiagnostico) {
         const input = document.getElementById(`diag-${p.id}`);
-        const respuesta = input.value.trim().toLowerCase();
+        const respuesta = input.value.trim();
 
         if (!respuesta) {
             alert("Debes responder todas las preguntas.");
             return;
         }
 
-        const correcta = respuesta.includes(p.correcta.toLowerCase()) || p.correcta.toLowerCase().includes(respuesta);
-
-        respuestasBooleanas.push(correcta);
-        preguntasIds.push(p.id);
+        respuestas.push({ id: p.id, respuesta });
     }
 
-    const res = await fetch("http://127.0.0.1:5000/diagnostico-inicial", {
+    const res = await fetch("/diagnostico-inicial", {
         method: "POST",
         headers: {
             "Content-Type": "application/json",
             "Authorization": `Bearer ${token}`
         },
         body: JSON.stringify({
-            respuestas: respuestasBooleanas,
-            preguntas_ids: preguntasIds
+            respuestas
         })
     });
 

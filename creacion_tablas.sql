@@ -12,10 +12,10 @@ CREATE TABLE roles (
 -- USUARIOS
 CREATE TABLE usuarios (
   id_usuario INT AUTO_INCREMENT PRIMARY KEY,
-  nombre VARCHAR(100),
-  email VARCHAR(100),
-  contraseña VARCHAR(255),
-  id_rol INT,
+  nombre VARCHAR(100) NOT NULL,
+  email VARCHAR(100) NOT NULL UNIQUE,
+  contraseña VARCHAR(255) NOT NULL,
+  id_rol INT NOT NULL,
   fecha_registro DATE,
   FOREIGN KEY (id_rol) REFERENCES roles(id_rol)
 );
@@ -23,7 +23,7 @@ CREATE TABLE usuarios (
 -- ESTUDIANTES
 CREATE TABLE estudiantes (
   id_estudiante INT AUTO_INCREMENT PRIMARY KEY,
-  id_usuario INT,
+  id_usuario INT NOT NULL UNIQUE,
   nivel_actual VARCHAR(20),
   FOREIGN KEY (id_usuario) REFERENCES usuarios(id_usuario)
 );
@@ -31,7 +31,7 @@ CREATE TABLE estudiantes (
 -- DOCENTES
 CREATE TABLE docentes (
   id_docente INT AUTO_INCREMENT PRIMARY KEY,
-  id_usuario INT,
+  id_usuario INT NOT NULL UNIQUE,
   FOREIGN KEY (id_usuario) REFERENCES usuarios(id_usuario)
 );
 
@@ -46,10 +46,21 @@ CREATE TABLE textos (
 -- PREGUNTAS
 CREATE TABLE preguntas (
   id_pregunta INT AUTO_INCREMENT PRIMARY KEY,
-  id_texto INT,
-  enunciado TEXT,
-  tipo VARCHAR(20),
+  id_texto INT NOT NULL,
+  enunciado TEXT NOT NULL,
+  tipo VARCHAR(20) NOT NULL,
+  tipo_respuesta ENUM('opcion', 'texto') NOT NULL DEFAULT 'texto',
+  orden TINYINT,
   FOREIGN KEY (id_texto) REFERENCES textos(id_texto)
+);
+
+-- OPCIONES PARA PREGUNTAS DE SELECCIÓN
+CREATE TABLE opciones_pregunta (
+  id_opcion INT AUTO_INCREMENT PRIMARY KEY,
+  id_pregunta INT NOT NULL,
+  texto_opcion VARCHAR(500) NOT NULL,
+  es_correcta BOOLEAN NOT NULL DEFAULT FALSE,
+  FOREIGN KEY (id_pregunta) REFERENCES preguntas(id_pregunta) ON DELETE CASCADE
 );
 
 -- RESPUESTAS CORRECTAS
@@ -86,7 +97,7 @@ CREATE TABLE diagnostico (
 -- PROGRESO
 CREATE TABLE progreso (
   id_progreso INT AUTO_INCREMENT PRIMARY KEY,
-  id_estudiante INT,
+  id_estudiante INT NOT NULL UNIQUE,
   nivel_actual VARCHAR(20),
   porcentaje_avance FLOAT,
   FOREIGN KEY (id_estudiante) REFERENCES estudiantes(id_estudiante)
@@ -95,9 +106,9 @@ CREATE TABLE progreso (
 -- RETROALIMENTACION
 CREATE TABLE retroalimentacion (
   id_feedback INT AUTO_INCREMENT PRIMARY KEY,
-  id_respuesta_est INT,
-  mensaje TEXT,
-  tipo VARCHAR(50),
+  id_respuesta_est INT NOT NULL UNIQUE,
+  mensaje TEXT NOT NULL,
+  tipo VARCHAR(50) NOT NULL,
   FOREIGN KEY (id_respuesta_est) REFERENCES respuestas_estudiante(id_respuesta_est)
 );
 

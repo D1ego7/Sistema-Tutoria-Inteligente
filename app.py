@@ -1,3 +1,5 @@
+from datetime import timedelta
+from hashlib import sha256
 from flask import Flask, jsonify, request
 from flask_jwt_extended import JWTManager, create_access_token, jwt_required, get_jwt_identity, get_jwt
 from flask import send_from_directory
@@ -12,18 +14,137 @@ from services.tutoring import (
     obtener_nivel_actual,
     get_db_cursor,
     actualizar_nivel_estudiante,
+    sincronizar_progreso_estudiante,
     comparar_niveles,
     crear_plan_reforzamiento
 )
 import bcrypt
 import os
-import unicodedata
 
 app = Flask(__name__)
 
 # Configuración JWT
-app.config['JWT_SECRET_KEY'] = os.getenv('JWT_SECRET_KEY', 'tu_clave_secreta_aqui')
+app.config['JWT_SECRET_KEY'] = sha256(os.environ['JWT_SECRET_KEY'].encode('utf-8')).hexdigest()
+app.config['JWT_ACCESS_TOKEN_EXPIRES'] = timedelta(hours=1)
+app.config['JWT_TOKEN_LOCATION'] = ['headers']
 jwt = JWTManager(app)
+
+ROL_ESTUDIANTE = 1
+ROL_DOCENTE = 2
+ROL_ADMIN = 3
+NIVELES_LECTORES = ['literal', 'inferencial', 'crítico']
+
+DIAGNOSTICO_INICIAL = {
+    "texto": (
+        "Un pequeño ratón despertó accidentalmente a un enorme león que dormía bajo un árbol. "
+        "El león, furioso, atrapó al ratón entre sus garras. El ratón le rogó que lo dejara libre "
+        "y prometió ayudarlo algún día. El león se rió, pero decidió soltarlo. Días después, el león "
+        "cayó atrapado en una red. El ratón escuchó sus rugidos, corrió hacia él y mordió la red hasta "
+        "liberarlo. Desde entonces, el león comprendió que hasta los más pequeños pueden ser de gran ayuda."
+    ),
+    "preguntas": [
+        {
+            "id": 1,
+            "pregunta": "¿Quién es el personaje principal del texto?",
+            "respuestas_aceptadas": ["el ratón", "ratón"]
+        },
+        {
+            "id": 2,
+            "pregunta": "¿Dónde dormía el león?",
+            "respuestas_aceptadas": ["bajo un árbol", "debajo de un árbol"]
+        },
+        {
+            "id": 3,
+            "pregunta": "¿Por qué el león dejó libre al ratón?",
+            "respuestas_aceptadas": [
+                "porque el ratón le prometió ayudarlo",
+                "porque le prometió ayudarlo"
+            ]
+        },
+        {
+            "id": 4,
+            "pregunta": "¿Qué enseñanza deja la historia?",
+            "respuestas_aceptadas": [
+                "todos pueden ayudar sin importar su tamaño",
+                "hasta los más pequeños pueden ayudar",
+                "no importa el tamaño todos podemos ayudar"
+            ]
+        }
+    ]
+}
+
+
+def obtener_usuario_actual():
+    """Devuelve una representación consistente del usuario autenticado."""
+    id_usuario = int(get_jwt_identity())
+    claims = get_jwt()
+    return {
+        "id_usuario": id_usuario,
+        "rol": int(claims.get("rol", 0)),
+        "nombre": claims.get("nombre", "")
+    }
+
+
+def obtener_estudiante_de_usuario(cursor, id_usuario):
+    cursor.execute(
+        "SELECT id_estudiante FROM estudiantes WHERE id_usuario = %s",
+        (id_usuario,)
+    )
+    return cursor.fetchone()
+
+
+def puede_acceder_estudiante(cursor, usuario, id_estudiante):
+    if usuario["rol"] in (ROL_DOCENTE, ROL_ADMIN):
+        return True
+    if usuario["rol"] != ROL_ESTUDIANTE:
+        return False
+    estudiante = obtener_estudiante_de_usuario(cursor, usuario["id_usuario"])
+    return bool(estudiante and estudiante["id_estudiante"] == id_estudiante)
+
+
+def respuesta_diagnostico_es_correcta(respuesta, respuestas_aceptadas):
+    respuesta_normalizada = normalizar_texto(respuesta)
+    if not respuesta_normalizada:
+        return False
+    for respuesta_aceptada in respuestas_aceptadas:
+        esperada = normalizar_texto(respuesta_aceptada)
+        if respuesta_normalizada == esperada or esperada in respuesta_normalizada:
+            return True
+    return False
+
+
+def evaluar_respuestas_diagnostico(respuestas):
+    """Valida y califica el diagnóstico exclusivamente en el servidor."""
+    if not isinstance(respuestas, list):
+        raise ValueError("respuestas debe ser una lista")
+
+    respuestas_por_id = {}
+    for item in respuestas:
+        if not isinstance(item, dict) or "id" not in item or "respuesta" not in item:
+            raise ValueError("Cada respuesta debe incluir id y respuesta")
+        try:
+            pregunta_id = int(item["id"])
+        except (TypeError, ValueError) as exc:
+            raise ValueError("ID de pregunta inválido") from exc
+        if pregunta_id in respuestas_por_id:
+            raise ValueError("No se permiten preguntas duplicadas")
+        respuesta = str(item["respuesta"]).strip()
+        if not respuesta:
+            raise ValueError("Debes responder todas las preguntas")
+        respuestas_por_id[pregunta_id] = respuesta
+
+    preguntas = DIAGNOSTICO_INICIAL["preguntas"]
+    ids_esperados = {pregunta["id"] for pregunta in preguntas}
+    if set(respuestas_por_id) != ids_esperados:
+        raise ValueError("Debes responder exactamente las preguntas del diagnóstico")
+
+    return [
+        respuesta_diagnostico_es_correcta(
+            respuestas_por_id[pregunta["id"]],
+            pregunta["respuestas_aceptadas"]
+        )
+        for pregunta in preguntas
+    ]
 
 def estudiante_tiene_diagnostico(id_usuario):
     conn, cursor = get_db_cursor()
@@ -133,19 +254,37 @@ def diagnostico_css():
 def obtener_texto(id_texto):
     """Obtiene un texto específico (requiere autenticación)"""
     try:
-        claims = get_jwt()
-        id_usuario = int(get_jwt_identity())
-        if claims.get('rol') == 1 and not estudiante_tiene_diagnostico(id_usuario):
+        usuario = obtener_usuario_actual()
+        if usuario['rol'] == ROL_ESTUDIANTE and not estudiante_tiene_diagnostico(usuario['id_usuario']):
             return jsonify({"error": "Debes completar el diagnóstico inicial"}), 403
+        if usuario['rol'] not in (ROL_ESTUDIANTE, ROL_DOCENTE, ROL_ADMIN):
+            return jsonify({"error": "No tienes permisos para consultar textos"}), 403
 
         conn, cursor = get_db_cursor()
         cursor.execute("SELECT id_texto, titulo, contenido, nivel FROM textos WHERE id_texto = %s", (id_texto,))
         texto = cursor.fetchone()
-        cursor.close()
-        conn.close()
         
         if not texto:
+            cursor.close()
+            conn.close()
             return jsonify({"error": "Texto no encontrado"}), 404
+
+        if usuario['rol'] == ROL_ESTUDIANTE:
+            estudiante = obtener_estudiante_de_usuario(cursor, usuario['id_usuario'])
+            if not estudiante:
+                cursor.close()
+                conn.close()
+                return jsonify({"error": "El usuario no es estudiante"}), 403
+            nivel_actual = obtener_nivel_actual(estudiante['id_estudiante'])
+            niveles_permitidos = NIVELES_LECTORES[:NIVELES_LECTORES.index(nivel_actual) + 1] \
+                if nivel_actual in NIVELES_LECTORES else [NIVELES_LECTORES[0]]
+            if normalizar_texto(texto['nivel']) not in [normalizar_texto(n) for n in niveles_permitidos]:
+                cursor.close()
+                conn.close()
+                return jsonify({"error": "El texto aún no está habilitado para tu nivel"}), 403
+
+        cursor.close()
+        conn.close()
         
         return jsonify(texto), 200
     except Exception as e:
@@ -156,7 +295,10 @@ def obtener_texto(id_texto):
 def obtener_textos():
     """Obtiene textos según el nivel actual o un nivel anterior permitido"""
     try:
-        id_usuario = int(get_jwt_identity())
+        usuario = obtener_usuario_actual()
+        if usuario['rol'] != ROL_ESTUDIANTE:
+            return jsonify({"error": "Esta vista solo está disponible para estudiantes"}), 403
+        id_usuario = usuario['id_usuario']
 
         conn, cursor = get_db_cursor()
 
@@ -181,7 +323,7 @@ def obtener_textos():
         nivel_actual = obtener_nivel_actual(id_estudiante)
         nivel_solicitado = request.args.get("nivel", nivel_actual)
 
-        niveles = ["literal", "inferencial", "crítico"]
+        niveles = NIVELES_LECTORES
 
         if nivel_actual not in niveles:
             nivel_actual = "literal"
@@ -254,14 +396,18 @@ def obtener_textos():
 # ===========================================
 @app.route('/register', methods=['POST'])
 def register():
-    data = request.get_json()
+    data = request.get_json(silent=True) or {}
     nombre = data.get('nombre')
     email = data.get('email')
     password = data.get('password')
-    id_rol = data.get('id_rol', 1)  # Por defecto estudiante
+    # El registro público solo crea estudiantes. Los roles privilegiados deben
+    # ser administrados mediante un flujo separado y autenticado.
+    id_rol = ROL_ESTUDIANTE
 
     if not nombre or not email or not password:
         return jsonify({"error": "Nombre, email y password son requeridos"}), 400
+    if len(str(password)) < 8:
+        return jsonify({"error": "La contraseña debe tener al menos 8 caracteres"}), 400
 
     try:
         conn, cursor = get_db_cursor()
@@ -299,7 +445,7 @@ def register():
 
 @app.route('/login', methods=['POST'])
 def login():
-    data = request.get_json()
+    data = request.get_json(silent=True) or {}
     email = data.get('email')
     password = data.get('password')
 
@@ -318,9 +464,8 @@ def login():
             password_bytes = password.encode('utf-8')
             try:
                 password_matches = bcrypt.checkpw(password_bytes, stored_password.encode('utf-8'))
-            except ValueError:
-                # Si la contraseña en la base de datos no está hasheada, comparamos directamente el texto.
-                password_matches = password == stored_password
+            except (TypeError, ValueError):
+                password_matches = False
 
             if password_matches:
                 access_token = create_access_token(identity=str(user['id_usuario']),additional_claims={"rol": user["id_rol"],"nombre": user["nombre"]})
@@ -333,8 +478,10 @@ def login():
 @app.route('/protected', methods=['GET'])
 @jwt_required()
 def protected():
-    current_user = get_jwt_identity()
-    return jsonify({"message": f"Hola {current_user['nombre']}, tienes acceso!"}), 200
+    usuario = obtener_usuario_actual()
+    return jsonify({
+        "message": f"Hola {usuario['nombre'] or usuario['id_usuario']}, tienes acceso!"
+    }), 200
 
 # ===========================================
 # APARTADO DE PREGUNTAS Y RESPUESTAS
@@ -344,10 +491,11 @@ def protected():
 def obtener_preguntas(id_texto):
     """Obtiene todas las preguntas de un texto específico (requiere autenticación)"""
     try:
-        claims = get_jwt()
-        id_usuario = int(get_jwt_identity())
-        if claims.get('rol') == 1 and not estudiante_tiene_diagnostico(id_usuario):
+        usuario = obtener_usuario_actual()
+        if usuario['rol'] == ROL_ESTUDIANTE and not estudiante_tiene_diagnostico(usuario['id_usuario']):
             return jsonify({"error": "Debes completar el diagnóstico inicial"}), 403
+        if usuario['rol'] not in (ROL_ESTUDIANTE, ROL_DOCENTE, ROL_ADMIN):
+            return jsonify({"error": "No tienes permisos para consultar preguntas"}), 403
 
         if id_texto <= 0:
             return jsonify({"error": "ID de texto inválido"}), 400
@@ -355,11 +503,26 @@ def obtener_preguntas(id_texto):
         conn, cursor = get_db_cursor()
         
         # Verificar que el texto existe
-        cursor.execute("SELECT id_texto FROM textos WHERE id_texto = %s", (id_texto,))
-        if not cursor.fetchone():
+        cursor.execute("SELECT id_texto, nivel FROM textos WHERE id_texto = %s", (id_texto,))
+        texto = cursor.fetchone()
+        if not texto:
             cursor.close()
             conn.close()
             return jsonify({"error": "Texto no encontrado"}), 404
+
+        if usuario['rol'] == ROL_ESTUDIANTE:
+            estudiante = obtener_estudiante_de_usuario(cursor, usuario['id_usuario'])
+            if not estudiante:
+                cursor.close()
+                conn.close()
+                return jsonify({"error": "El usuario no es estudiante"}), 403
+            nivel_actual = obtener_nivel_actual(estudiante['id_estudiante'])
+            indice_actual = NIVELES_LECTORES.index(nivel_actual) if nivel_actual in NIVELES_LECTORES else 0
+            niveles_permitidos = NIVELES_LECTORES[:indice_actual + 1]
+            if normalizar_texto(texto['nivel']) not in [normalizar_texto(n) for n in niveles_permitidos]:
+                cursor.close()
+                conn.close()
+                return jsonify({"error": "Las preguntas aún no están habilitadas para tu nivel"}), 403
         
         cursor.execute("""
             SELECT p.id_pregunta, p.id_texto, p.enunciado, p.tipo,
@@ -409,13 +572,41 @@ def obtener_pregunta(id_pregunta):
             return jsonify({"error": "ID de pregunta inválido"}), 400
         
         conn, cursor = get_db_cursor()
-        cursor.execute("SELECT id_pregunta, id_texto, enunciado, tipo FROM preguntas WHERE id_pregunta = %s", (id_pregunta,))
+        usuario = obtener_usuario_actual()
+        cursor.execute("""
+            SELECT p.id_pregunta, p.id_texto, p.enunciado, p.tipo, t.nivel
+            FROM preguntas p
+            JOIN textos t ON t.id_texto = p.id_texto
+            WHERE p.id_pregunta = %s
+        """, (id_pregunta,))
         pregunta = cursor.fetchone()
-        cursor.close()
-        conn.close()
         
         if not pregunta:
+            cursor.close()
+            conn.close()
             return jsonify({"error": "Pregunta no encontrada"}), 404
+
+        if usuario['rol'] == ROL_ESTUDIANTE:
+            if not estudiante_tiene_diagnostico(usuario['id_usuario']):
+                cursor.close()
+                conn.close()
+                return jsonify({"error": "Debes completar el diagnóstico inicial"}), 403
+            estudiante = obtener_estudiante_de_usuario(cursor, usuario['id_usuario'])
+            nivel_actual = obtener_nivel_actual(estudiante['id_estudiante']) if estudiante else 'literal'
+            indice_actual = NIVELES_LECTORES.index(nivel_actual) if nivel_actual in NIVELES_LECTORES else 0
+            niveles_permitidos = NIVELES_LECTORES[:indice_actual + 1]
+            if normalizar_texto(pregunta['nivel']) not in [normalizar_texto(n) for n in niveles_permitidos]:
+                cursor.close()
+                conn.close()
+                return jsonify({"error": "La pregunta aún no está habilitada para tu nivel"}), 403
+        elif usuario['rol'] not in (ROL_DOCENTE, ROL_ADMIN):
+            cursor.close()
+            conn.close()
+            return jsonify({"error": "No tienes permisos para consultar esta pregunta"}), 403
+
+        pregunta.pop('nivel', None)
+        cursor.close()
+        conn.close()
         
         return jsonify(pregunta), 200
     except Exception as e:
@@ -426,8 +617,8 @@ def obtener_pregunta(id_pregunta):
 def obtener_respuesta_correcta(id_pregunta):
     """Obtiene la respuesta correcta de una pregunta (solo para docentes/admin)"""
     try:
-        current_user = get_jwt_identity()
-        id_rol = current_user.get('rol')
+        usuario = obtener_usuario_actual()
+        id_rol = usuario['rol']
         
         # Validar que sea docente (id_rol 2) o admin (id_rol 3)
         if id_rol not in [2, 3]:
@@ -462,9 +653,11 @@ def obtener_respuesta_correcta(id_pregunta):
 def guardar_respuesta():
     """Guarda la respuesta de un estudiante a una pregunta"""
     try:
-        current_user = get_jwt_identity()
-        id_usuario = current_user['id']
-        data = request.get_json()
+        usuario = obtener_usuario_actual()
+        if usuario['rol'] != ROL_ESTUDIANTE:
+            return jsonify({"error": "Solo los estudiantes pueden guardar respuestas"}), 403
+        id_usuario = usuario['id_usuario']
+        data = request.get_json(silent=True) or {}
         
         id_pregunta = data.get('id_pregunta')
         respuesta = data.get('respuesta')
@@ -484,29 +677,78 @@ def guardar_respuesta():
             conn.close()
             return jsonify({"error": "Usuario no es estudiante"}), 400
         
-        id_estudiante = estudiante[0]
+        id_estudiante = estudiante['id_estudiante']
         
-        # Obtener la respuesta correcta
-        cursor.execute("SELECT respuesta FROM respuestas_correctas WHERE id_pregunta = %s", (id_pregunta,))
-        respuesta_correcta_row = cursor.fetchone()
+        try:
+            tiempo_respuesta = max(0, min(int(tiempo_respuesta), 3600))
+        except (TypeError, ValueError):
+            cursor.close()
+            conn.close()
+            return jsonify({"error": "tiempo_respuesta inválido"}), 400
+
+        # Obtener la pregunta y su respuesta correcta.
+        cursor.execute("""
+            SELECT p.tipo, t.nivel, rc.respuesta
+            FROM preguntas p
+            JOIN textos t ON t.id_texto = p.id_texto
+            LEFT JOIN respuestas_correctas rc ON rc.id_pregunta = p.id_pregunta
+            WHERE p.id_pregunta = %s
+        """, (id_pregunta,))
+        pregunta = cursor.fetchone()
+        if not pregunta:
+            cursor.close()
+            conn.close()
+            return jsonify({"error": "Pregunta no encontrada"}), 404
+
+        nivel_actual = obtener_nivel_actual(id_estudiante)
+        indice_actual = NIVELES_LECTORES.index(nivel_actual) if nivel_actual in NIVELES_LECTORES else 0
+        if normalizar_texto(pregunta['nivel']) not in [normalizar_texto(n) for n in NIVELES_LECTORES[:indice_actual + 1]]:
+            cursor.close()
+            conn.close()
+            return jsonify({"error": "La actividad aún no está habilitada para tu nivel"}), 403
         
         es_correcta = False
-        if respuesta_correcta_row:
-            es_correcta = respuesta.lower().strip() == respuesta_correcta_row[0].lower().strip()
+        if pregunta['respuesta']:
+            es_correcta = normalizar_texto(respuesta) == normalizar_texto(
+                pregunta['respuesta']
+            )
         
         # Guardar la respuesta del estudiante
         cursor.execute("""INSERT INTO respuestas_estudiante 
                          (id_estudiante, id_pregunta, respuesta, es_correcta, tiempo_respuesta, fecha) 
                          VALUES (%s, %s, %s, %s, %s, CURDATE())""",
                       (id_estudiante, id_pregunta, respuesta, es_correcta, tiempo_respuesta))
-        conn.commit()
         respuesta_id = cursor.lastrowid
+
+        feedback = generar_feedback_personalizado(
+            id_pregunta,
+            es_correcta,
+            respuesta,
+            pregunta['respuesta'] or '',
+            pregunta['tipo']
+        )
+        mensaje_feedback = " ".join(
+            parte for parte in [feedback.get('mensaje'), feedback.get('explicacion'), feedback.get('pista')]
+            if parte
+        )
+        cursor.execute("""
+            INSERT INTO retroalimentacion (id_respuesta_est, mensaje, tipo)
+            VALUES (%s, %s, %s)
+        """, (
+            respuesta_id,
+            mensaje_feedback,
+            'correcta' if es_correcta else f"refuerzo_{pregunta['tipo']}"
+        ))
+        conn.commit()
         cursor.close()
         conn.close()
+
+        sincronizar_progreso_estudiante(id_estudiante)
         
         return jsonify({"message": "Respuesta guardada exitosamente", 
                        "id_respuesta_est": respuesta_id, 
-                       "es_correcta": es_correcta}), 201
+                       "es_correcta": es_correcta,
+                       "feedback": feedback}), 201
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
@@ -515,9 +757,7 @@ def guardar_respuesta():
 def obtener_respuestas_estudiante(id_estudiante):
     """Obtiene todas las respuestas de un estudiante (requiere ser el estudiante o docente/admin)"""
     try:
-        current_user = get_jwt_identity()
-        id_usuario = current_user['id']
-        id_rol = current_user.get('rol')
+        usuario = obtener_usuario_actual()
         
         if id_estudiante <= 0:
             return jsonify({"error": "ID de estudiante inválido"}), 400
@@ -525,23 +765,20 @@ def obtener_respuestas_estudiante(id_estudiante):
         # Obtener id_estudiante del usuario actual
         conn = get_db_connection()
         cursor = conn.cursor()
-        cursor.execute("SELECT id_estudiante FROM estudiantes WHERE id_usuario = %s", (id_usuario,))
-        estudiante_actual = cursor.fetchone()
-        
-        # Validar permisos: solo el estudiante o docente/admin pueden ver
-        if id_rol == 1:  # Es estudiante
-            if not estudiante_actual or estudiante_actual[0] != id_estudiante:
-                cursor.close()
-                conn.close()
-                return jsonify({"error": "No tienes permisos para ver las respuestas de otro estudiante"}), 403
-        elif id_rol not in [2, 3]:  # No es docente ni admin
+        if not puede_acceder_estudiante(cursor, usuario, id_estudiante):
             cursor.close()
             conn.close()
             return jsonify({"error": "No tienes permisos para acceder a esta información"}), 403
         
-        cursor.execute("""SELECT id_respuesta_est, id_estudiante, id_pregunta, respuesta, es_correcta, tiempo_respuesta, fecha 
-                         FROM respuestas_estudiante WHERE id_estudiante = %s
-                         ORDER BY fecha DESC""", (id_estudiante,))
+        cursor.execute("""
+            SELECT re.id_respuesta_est, re.id_estudiante, re.id_pregunta,
+                   re.respuesta, re.es_correcta, re.tiempo_respuesta, re.fecha,
+                   rf.mensaje AS feedback_mensaje, rf.tipo AS feedback_tipo
+            FROM respuestas_estudiante re
+            LEFT JOIN retroalimentacion rf ON rf.id_respuesta_est = re.id_respuesta_est
+            WHERE re.id_estudiante = %s
+            ORDER BY re.id_respuesta_est DESC
+        """, (id_estudiante,))
         respuestas = cursor.fetchall()
         cursor.close()
         conn.close()
@@ -550,13 +787,17 @@ def obtener_respuestas_estudiante(id_estudiante):
             return jsonify([]), 200
         
         resultado = [{
-            "id_respuesta_est": r[0],
-            "id_estudiante": r[1],
-            "id_pregunta": r[2],
-            "respuesta": r[3],
-            "es_correcta": bool(r[4]),
-            "tiempo_respuesta": r[5],
-            "fecha": str(r[6])
+            "id_respuesta_est": r['id_respuesta_est'],
+            "id_estudiante": r['id_estudiante'],
+            "id_pregunta": r['id_pregunta'],
+            "respuesta": r['respuesta'],
+            "es_correcta": bool(r['es_correcta']),
+            "tiempo_respuesta": r['tiempo_respuesta'],
+            "fecha": str(r['fecha']),
+            "feedback": {
+                "mensaje": r['feedback_mensaje'],
+                "tipo": r['feedback_tipo']
+            } if r['feedback_mensaje'] else None
         } for r in respuestas]
         
         return jsonify(resultado), 200
@@ -568,6 +809,9 @@ def obtener_respuestas_estudiante(id_estudiante):
 def verificar_respuesta(id_pregunta):
     """Verifica si una respuesta es correcta sin guardarla (requiere autenticación)"""
     try:
+        usuario = obtener_usuario_actual()
+        if usuario['rol'] != ROL_ESTUDIANTE:
+            return jsonify({"error": "Solo los estudiantes pueden verificar respuestas"}), 403
         if id_pregunta <= 0:
             return jsonify({"error": "ID de pregunta inválido"}), 400
         
@@ -609,7 +853,10 @@ def verificar_respuesta(id_pregunta):
 def obtener_respuestas_por_texto(id_texto):
     """Obtiene las respuestas más recientes del estudiante para un texto específico"""
     try:
-        id_usuario = int(get_jwt_identity())
+        usuario = obtener_usuario_actual()
+        if usuario['rol'] != ROL_ESTUDIANTE:
+            return jsonify({"error": "Solo los estudiantes pueden consultar sus respuestas"}), 403
+        id_usuario = usuario['id_usuario']
 
         conn, cursor = get_db_cursor()
 
@@ -677,21 +924,17 @@ def obtener_respuestas_por_texto(id_texto):
 def obtener_evaluacion(id_estudiante):
     """Obtiene la evaluación general del estudiante"""
     try:
-        current_user = get_jwt_identity()
-        id_rol = current_user.get('rol')
+        usuario = obtener_usuario_actual()
         
         if id_estudiante <= 0:
             return jsonify({"error": "ID de estudiante inválido"}), 400
         
-        # Docentes y admin pueden ver cualquier estudiante, estudiantes solo el suyo
-        if id_rol == 1:  # Estudiante
-            conn, cursor = get_db_cursor()
-            cursor.execute("SELECT id_estudiante FROM estudiantes WHERE id_usuario = %s", (current_user['id'],))
-            estudiante_actual = cursor.fetchone()
-            cursor.close()
-            conn.close()
-            if not estudiante_actual or estudiante_actual['id_estudiante'] != id_estudiante:
-                return jsonify({"error": "No tienes permisos para ver la evaluación de otro estudiante"}), 403
+        conn, cursor = get_db_cursor()
+        autorizado = puede_acceder_estudiante(cursor, usuario, id_estudiante)
+        cursor.close()
+        conn.close()
+        if not autorizado:
+            return jsonify({"error": "No tienes permisos para ver esta evaluación"}), 403
         
         limite = request.args.get('limite', 50, type=int)
         if limite <= 0 or limite > 1000:
@@ -707,21 +950,17 @@ def obtener_evaluacion(id_estudiante):
 def obtener_patrones(id_estudiante):
     """Detecta patrones de error del estudiante"""
     try:
-        current_user = get_jwt_identity()
-        id_rol = current_user.get('rol')
+        usuario = obtener_usuario_actual()
         
         if id_estudiante <= 0:
             return jsonify({"error": "ID de estudiante inválido"}), 400
         
-        # Validar permisos
-        if id_rol == 1:  # Estudiante
-            conn, cursor = get_db_cursor()
-            cursor.execute("SELECT id_estudiante FROM estudiantes WHERE id_usuario = %s", (current_user['id'],))
-            estudiante_actual = cursor.fetchone()
-            cursor.close()
-            conn.close()
-            if not estudiante_actual or estudiante_actual['id_estudiante'] != id_estudiante:
-                return jsonify({"error": "No tienes permisos para ver los patrones de otro estudiante"}), 403
+        conn, cursor = get_db_cursor()
+        autorizado = puede_acceder_estudiante(cursor, usuario, id_estudiante)
+        cursor.close()
+        conn.close()
+        if not autorizado:
+            return jsonify({"error": "No tienes permisos para ver estos patrones"}), 403
         
         patrones = detectar_patrones_error(id_estudiante)
         return jsonify(patrones), 200
@@ -733,28 +972,20 @@ def obtener_patrones(id_estudiante):
 def obtener_recomendacion(id_estudiante):
     """Obtiene recomendación de nivel siguiente"""
     try:
-        current_user = get_jwt_identity()
-        id_rol = current_user.get('rol')
+        usuario = obtener_usuario_actual()
         
         if id_estudiante <= 0:
             return jsonify({"error": "ID de estudiante inválido"}), 400
         
-        # Validar permisos
-        if id_rol == 1:  # Estudiante
-            conn, cursor = get_db_cursor()
-            cursor.execute("SELECT id_estudiante FROM estudiantes WHERE id_usuario = %s", (current_user['id'],))
-            estudiante_actual = cursor.fetchone()
-            cursor.close()
-            conn.close()
-            if not estudiante_actual or estudiante_actual['id_estudiante'] != id_estudiante:
-                return jsonify({"error": "No tienes permisos para ver la recomendación de otro estudiante"}), 403
+        conn, cursor = get_db_cursor()
+        autorizado = puede_acceder_estudiante(cursor, usuario, id_estudiante)
+        cursor.close()
+        conn.close()
+        if not autorizado:
+            return jsonify({"error": "No tienes permisos para ver esta recomendación"}), 403
         
         recomendacion = recomendar_nivel_siguiente(id_estudiante)
-        
-        # Actualizar nivel si hay recomendación
-        if recomendacion and recomendacion.get('recomendacion') in ['siguiente', 'anterior']:
-            actualizar_nivel_estudiante(id_estudiante, recomendacion.get('nuevo_nivel'))
-        
+        # Consultar una recomendación no modifica el estado del estudiante.
         return jsonify(recomendacion), 200
     except Exception as e:
         return jsonify({"error": f"Error al obtener recomendación: {str(e)}"}), 500
@@ -770,10 +1001,14 @@ def responder_con_feedback():
         "tiempo_respuesta": 30
     }
     """
+    conn = None
+    cursor = None
     try:
-        id_usuario = int(get_jwt_identity())
-        claims = get_jwt()
-        data = request.get_json()
+        usuario = obtener_usuario_actual()
+        if usuario['rol'] != ROL_ESTUDIANTE:
+            return jsonify({"error": "Solo los estudiantes pueden responder actividades"}), 403
+        id_usuario = usuario['id_usuario']
+        data = request.get_json(silent=True) or {}
         
         id_pregunta = data.get('id_pregunta')
         respuesta = data.get('respuesta')
@@ -782,6 +1017,10 @@ def responder_con_feedback():
         
         if not id_pregunta or (respuesta is None and not id_opcion):
             return jsonify({"error": "id_pregunta y respuesta son requeridos"}), 400
+        try:
+            tiempo_respuesta = max(0, min(int(tiempo_respuesta), 3600))
+        except (TypeError, ValueError):
+            return jsonify({"error": "tiempo_respuesta inválido"}), 400
         
         conn, cursor = get_db_cursor()
         
@@ -798,8 +1037,9 @@ def responder_con_feedback():
         
         # Obtener el tipo de pregunta y validar su respuesta contra la BD.
         cursor.execute("""
-            SELECT p.tipo, p.tipo_respuesta, rc.respuesta
-            FROM preguntas p 
+            SELECT p.tipo, p.tipo_respuesta, p.id_texto, t.nivel, rc.respuesta
+            FROM preguntas p
+            JOIN textos t ON t.id_texto = p.id_texto
             LEFT JOIN respuestas_correctas rc ON p.id_pregunta = rc.id_pregunta 
             WHERE p.id_pregunta = %s
         """, (id_pregunta,))
@@ -813,6 +1053,14 @@ def responder_con_feedback():
         tipo_pregunta = pregunta_info['tipo']
         tipo_respuesta = pregunta_info['tipo_respuesta']
         respuesta_correcta = pregunta_info['respuesta']
+
+        nivel_actual = obtener_nivel_actual(id_estudiante)
+        indice_actual = NIVELES_LECTORES.index(nivel_actual) if nivel_actual in NIVELES_LECTORES else 0
+        niveles_permitidos = NIVELES_LECTORES[:indice_actual + 1]
+        if normalizar_texto(pregunta_info['nivel']) not in [normalizar_texto(n) for n in niveles_permitidos]:
+            cursor.close()
+            conn.close()
+            return jsonify({"error": "La actividad aún no está habilitada para tu nivel"}), 403
 
         if tipo_respuesta == 'opcion':
             if not id_opcion:
@@ -852,7 +1100,6 @@ def responder_con_feedback():
                          (id_estudiante, id_pregunta, respuesta, es_correcta, tiempo_respuesta, fecha)
                          VALUES (%s, %s, %s, %s, %s, NOW())""",
                       (id_estudiante, id_pregunta, respuesta, es_correcta, tiempo_respuesta))
-        conn.commit()
         respuesta_id = cursor.lastrowid
         
         # Generar feedback
@@ -863,6 +1110,23 @@ def responder_con_feedback():
             respuesta_correcta or '',
             tipo_pregunta
         )
+
+        mensaje_feedback = " ".join(
+            parte for parte in [
+                feedback.get('mensaje', ''),
+                feedback.get('explicacion', ''),
+                feedback.get('pista', '')
+            ] if parte
+        )
+        cursor.execute("""
+            INSERT INTO retroalimentacion (id_respuesta_est, mensaje, tipo)
+            VALUES (%s, %s, %s)
+        """, (
+            respuesta_id,
+            mensaje_feedback,
+            'correcta' if es_correcta else f'refuerzo_{tipo_pregunta}'
+        ))
+        conn.commit()
         
         # Obtener recomendación (si hay suficientes respuestas)
         cursor.execute("SELECT COUNT(*) FROM respuestas_estudiante WHERE id_estudiante = %s", (id_estudiante,))
@@ -871,7 +1135,9 @@ def responder_con_feedback():
         
         recomendacion = None
         cursor.close()
+        cursor = None
         conn.close()
+        conn = None
         
         resultado = {
             "id_respuesta_est": respuesta_id,
@@ -881,9 +1147,10 @@ def responder_con_feedback():
             "total_respuestas": total_respuestas
         }
 
-        # Incluir progreso actualizado para mostrar en tiempo real
+        # Incluir el progreso consolidado y mantener sincronizada su persistencia.
         if total_respuestas > 0:
-            evaluacion = calcular_puntuacion_estudiante(id_estudiante)
+            progreso = sincronizar_progreso_estudiante(id_estudiante)
+            evaluacion = progreso.get('evaluacion', calcular_puntuacion_estudiante(id_estudiante))
             resultado["progreso_actualizado"] = {
                 "total_respuestas": evaluacion.get('total_respuestas', 0),
                 "respuestas_correctas": evaluacion.get('respuestas_correctas', 0),
@@ -892,6 +1159,12 @@ def responder_con_feedback():
 
         return jsonify(resultado), 201
     except Exception as e:
+        if conn:
+            conn.rollback()
+        if cursor:
+            cursor.close()
+        if conn:
+            conn.close()
         return jsonify({"error": str(e)}), 500
 
 @app.route('/feedback-sesion', methods=['POST'])
@@ -905,7 +1178,10 @@ def feedback_sesion():
         if not id_texto:
             return jsonify({"error": "id_texto es requerido"}), 400
 
-        id_usuario = int(get_jwt_identity())
+        usuario = obtener_usuario_actual()
+        if usuario['rol'] != ROL_ESTUDIANTE:
+            return jsonify({"error": "Solo los estudiantes pueden cerrar una sesión de lectura"}), 403
+        id_usuario = usuario['id_usuario']
         conn, cursor = get_db_cursor()
         cursor.execute("SELECT id_estudiante FROM estudiantes WHERE id_usuario = %s", (id_usuario,))
         estudiante = cursor.fetchone()
@@ -975,6 +1251,8 @@ def feedback_sesion():
         cursor.close()
         conn.close()
 
+        sincronizar_progreso_estudiante(id_estudiante)
+
         return jsonify({
             'puntaje': {
                 'respondidas': preguntas_respondidas,
@@ -994,26 +1272,48 @@ def feedback_sesion():
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
+@app.route('/diagnostico-preguntas', methods=['GET'])
+@jwt_required()
+def obtener_diagnostico_preguntas():
+    """Entrega el contenido diagnóstico sin exponer las respuestas correctas."""
+    try:
+        usuario = obtener_usuario_actual()
+        if usuario['rol'] != ROL_ESTUDIANTE:
+            return jsonify({"error": "El diagnóstico solo está disponible para estudiantes"}), 403
+        if estudiante_tiene_diagnostico(usuario['id_usuario']):
+            return jsonify({"error": "El diagnóstico inicial ya fue completado"}), 409
+        return jsonify({
+            "texto": DIAGNOSTICO_INICIAL["texto"],
+            "preguntas": [
+                {"id": pregunta["id"], "pregunta": pregunta["pregunta"]}
+                for pregunta in DIAGNOSTICO_INICIAL["preguntas"]
+            ]
+        }), 200
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
 @app.route('/diagnostico-inicial', methods=['POST'])
 @jwt_required()
 def realizar_diagnostico():
     """
     Realiza diagnóstico inicial del estudiante
-    Body: {
-        "respuestas": [true, false, true, ...],
-        "preguntas_ids": [1, 2, 3, ...]
-    }
+    Body: {"respuestas": [{"id": 1, "respuesta": "..."}, ...]}
     Retorna el nivel inicial asignado
     """
+    conn = None
+    cursor = None
     try:
-        id_usuario = int(get_jwt_identity())
-        data = request.get_json()
-        
-        respuestas = data.get('respuestas', [])
-        preguntas_ids = data.get('preguntas_ids', [])
-        
-        if not respuestas or len(respuestas) != len(preguntas_ids):
-            return jsonify({"error": "respuestas y preguntas_ids deben coincidir"}), 400
+        usuario = obtener_usuario_actual()
+        if usuario['rol'] != ROL_ESTUDIANTE:
+            return jsonify({"error": "El diagnóstico solo está disponible para estudiantes"}), 403
+        id_usuario = usuario['id_usuario']
+        data = request.get_json(silent=True) or {}
+
+        try:
+            respuestas_calificadas = evaluar_respuestas_diagnostico(data.get('respuestas'))
+        except ValueError as exc:
+            return jsonify({"error": str(exc)}), 400
         
         # Obtener estudiante
         conn, cursor = get_db_cursor()
@@ -1026,11 +1326,18 @@ def realizar_diagnostico():
             return jsonify({"error": "Usuario no es estudiante"}), 400
         
         id_estudiante = estudiante['id_estudiante']
-        
-        conn.commit()
+
+        cursor.execute(
+            "SELECT 1 FROM diagnostico WHERE id_estudiante = %s LIMIT 1",
+            (id_estudiante,)
+        )
+        if cursor.fetchone():
+            cursor.close()
+            conn.close()
+            return jsonify({"error": "El diagnóstico inicial ya fue completado"}), 409
         
         # Calcular nivel
-        resultado_diagnostico = calcular_nivel_lector_diagnostico(respuestas)
+        resultado_diagnostico = calcular_nivel_lector_diagnostico(respuestas_calificadas)
         nivel_asignado = resultado_diagnostico['nivel']
         
         # Guardar en tabla diagnostico
@@ -1038,13 +1345,21 @@ def realizar_diagnostico():
                          (id_estudiante, puntaje, nivel_asignado, fecha) 
                          VALUES (%s, %s, %s, NOW())""",
                       (id_estudiante, resultado_diagnostico['porcentaje'], nivel_asignado))
-        
+        cursor.execute(
+            "UPDATE estudiantes SET nivel_actual = %s WHERE id_estudiante = %s",
+            (nivel_asignado, id_estudiante)
+        )
+        cursor.execute("""
+            INSERT INTO progreso (id_estudiante, nivel_actual, porcentaje_avance)
+            VALUES (%s, %s, 0)
+            ON DUPLICATE KEY UPDATE nivel_actual = VALUES(nivel_actual), porcentaje_avance = 0
+        """, (id_estudiante, nivel_asignado))
+
         conn.commit()
         cursor.close()
+        cursor = None
         conn.close()
-        
-        # Actualizar nivel del estudiante
-        actualizar_nivel_estudiante(id_estudiante, nivel_asignado)
+        conn = None
         
         return jsonify({
             "diagnostico_completado": True,
@@ -1053,13 +1368,22 @@ def realizar_diagnostico():
             "mensaje": resultado_diagnostico['razon']
         }), 201
     except Exception as e:
+        if conn:
+            conn.rollback()
+        if cursor:
+            cursor.close()
+        if conn:
+            conn.close()
         return jsonify({"error": str(e)}), 500
 
 @app.route('/diagnostico-estado', methods=['GET'])
 @jwt_required()
 def diagnostico_estado():
     try:
-        id_usuario = int(get_jwt_identity())
+        usuario = obtener_usuario_actual()
+        if usuario['rol'] != ROL_ESTUDIANTE:
+            return jsonify({"error": "El diagnóstico solo está disponible para estudiantes"}), 403
+        id_usuario = usuario['id_usuario']
 
         conn, cursor = get_db_cursor()
         cursor.execute("SELECT id_estudiante FROM estudiantes WHERE id_usuario = %s", (id_usuario,))
@@ -1098,7 +1422,10 @@ def diagnostico_estado():
 def obtener_progreso_estudiante():
     """Obtiene progreso simplificado del estudiante para sesiones de lectura"""
     try:
-        id_usuario = int(get_jwt_identity())
+        usuario = obtener_usuario_actual()
+        if usuario['rol'] != ROL_ESTUDIANTE:
+            return jsonify({"error": "El progreso solo está disponible para estudiantes"}), 403
+        id_usuario = usuario['id_usuario']
         conn, cursor = get_db_cursor()
 
         cursor.execute("SELECT id_estudiante FROM estudiantes WHERE id_usuario = %s", (id_usuario,))
@@ -1147,7 +1474,10 @@ def obtener_progreso():
     """Obtiene resumen del progreso del estudiante (usuario logeado)"""
     try:
         # Obtener id_usuario desde el JWT (es string → convertir a int)
-        id_usuario = int(get_jwt_identity())
+        usuario = obtener_usuario_actual()
+        if usuario['rol'] != ROL_ESTUDIANTE:
+            return jsonify({"error": "El progreso solo está disponible para estudiantes"}), 403
+        id_usuario = usuario['id_usuario']
 
         # Obtener id_estudiante desde la BD
         conn, cursor = get_db_cursor()
@@ -1366,4 +1696,4 @@ def obtener_dashboard_estudiante():
         return jsonify({"error": str(e)}), 500
 
 if __name__ == '__main__':
-    app.run(debug=True)
+    app.run(debug=os.getenv('FLASK_DEBUG', '0') == '1')

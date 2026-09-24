@@ -46,7 +46,9 @@ async function login() {
             localStorage.setItem("user", JSON.stringify(data.user));
 
             if (data.user.rol !== 1) {
-                window.location.href = "menu.html";
+                localStorage.removeItem("token");
+                localStorage.removeItem("user");
+                error.textContent = "El panel para docentes y administradores aún no está habilitado.";
                 return;
             }
 

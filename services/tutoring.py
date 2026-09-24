@@ -143,19 +143,28 @@ def calcular_puntuacion_estudiante(id_estudiante, limite_respuestas=None):
     try:
         conn, cursor = get_db_cursor()
         
-        # Obtener todas las respuestas del estudiante
+        # Consolidar el desempeño usando únicamente el intento más reciente
+        # de cada pregunta. Así, los reintentos no inflan ni castigan el avance.
         query = """
             SELECT re.id_respuesta_est, re.es_correcta, p.tipo, re.fecha
             FROM respuestas_estudiante re
             JOIN preguntas p ON re.id_pregunta = p.id_pregunta
+            JOIN (
+                SELECT id_pregunta, MAX(id_respuesta_est) AS ultima_respuesta
+                FROM respuestas_estudiante
+                WHERE id_estudiante = %s
+                GROUP BY id_pregunta
+            ) ultimas ON ultimas.ultima_respuesta = re.id_respuesta_est
             WHERE re.id_estudiante = %s
-            ORDER BY re.fecha DESC
+            ORDER BY re.id_respuesta_est DESC
         """
-        
+        parametros = [id_estudiante, id_estudiante]
+
         if limite_respuestas:
-            query += f" LIMIT {limite_respuestas}"
+            query += " LIMIT %s"
+            parametros.append(int(limite_respuestas))
         
-        cursor.execute(query, (id_estudiante,))
+        cursor.execute(query, tuple(parametros))
         respuestas = cursor.fetchall()
         cursor.close()
         conn.close()
@@ -187,7 +196,9 @@ def calcular_puntuacion_estudiante(id_estudiante, limite_respuestas=None):
         # Calcular tendencia (últimas 5 respuestas)
         ultimas = respuestas[:5]
         ultimas_correctas = sum(1 for r in ultimas if r['es_correcta'])
-        if ultimas_correctas >= 4:
+        if len(ultimas) < 3:
+            tendencia = 'datos_insuficientes'
+        elif ultimas_correctas >= 4:
             tendencia = 'mejorando'
         elif ultimas_correctas <= 1:
             tendencia = 'empeorando'
@@ -233,15 +244,21 @@ def detectar_patrones_error(id_estudiante, limite_respuestas=20):
                    re.tiempo_respuesta
             FROM respuestas_estudiante re
             JOIN preguntas p ON re.id_pregunta = p.id_pregunta
+            JOIN (
+                SELECT id_pregunta, MAX(id_respuesta_est) AS ultima_respuesta
+                FROM respuestas_estudiante
+                WHERE id_estudiante = %s
+                GROUP BY id_pregunta
+            ) ultimas ON ultimas.ultima_respuesta = re.id_respuesta_est
             LEFT JOIN respuestas_correctas rc ON p.id_pregunta = rc.id_pregunta
             LEFT JOIN opciones_pregunta op
                 ON p.id_pregunta = op.id_pregunta AND op.es_correcta = TRUE
             WHERE re.id_estudiante = %s AND re.es_correcta = FALSE
-            ORDER BY re.fecha DESC
+            ORDER BY re.id_respuesta_est DESC
             LIMIT %s
         """
         
-        cursor.execute(query, (id_estudiante, limite_respuestas))
+        cursor.execute(query, (id_estudiante, id_estudiante, limite_respuestas))
         errores = cursor.fetchall()
         cursor.close()
         conn.close()
@@ -264,7 +281,7 @@ def detectar_patrones_error(id_estudiante, limite_respuestas=20):
         for error in errores:
             nivel = error['tipo']
             errores_por_nivel[nivel] = errores_por_nivel.get(nivel, 0) + 1
-            tiempo_total += error['tiempo_respuesta']
+            tiempo_total += error['tiempo_respuesta'] or 0
         
         tiempo_promedio_error = tiempo_total / len(errores) if errores else 0
         
@@ -274,7 +291,7 @@ def detectar_patrones_error(id_estudiante, limite_respuestas=20):
         # Identificar tipo de error (falta respuesta, respuesta corta, respuesta completamente diferente)
         for error in errores[:5]:  # Analizar hasta 5 errores recientes
             respuesta_usuario = error['respuesta']
-            respuesta_correcta = error['respuesta_correcta']
+            respuesta_correcta = error['respuesta_correcta'] or ''
             
             if not respuesta_usuario or respuesta_usuario.strip() == '':
                 tipo_error = 'respuesta_vacia'
@@ -342,8 +359,21 @@ def recomendar_nivel_siguiente(id_estudiante):
                 'confianza': 'baja'
             }
         
-        porcentaje = puntuacion['porcentaje_acierto']
+        datos_nivel_actual = puntuacion.get('por_nivel', {}).get(nivel_actual, {})
+        total_nivel_actual = datos_nivel_actual.get('total', 0)
+        porcentaje = datos_nivel_actual.get('porcentaje', puntuacion['porcentaje_acierto'])
         tendencia = puntuacion['tendencia']
+
+        if total_nivel_actual < 5:
+            return {
+                'nivel_actual': nivel_actual,
+                'recomendacion': 'mantener',
+                'nuevo_nivel': nivel_actual,
+                'razon': f'Resuelve al menos 5 preguntas de nivel {nivel_actual} para generar una recomendación confiable.',
+                'confianza': 'baja',
+                'porcentaje_acierto': porcentaje,
+                'respuestas_nivel_actual': total_nivel_actual
+            }
         
         # Lógica de recomendación
         if porcentaje >= 80 and tendencia in ['mejorando', 'estable']:
@@ -365,6 +395,8 @@ def recomendar_nivel_siguiente(id_estudiante):
         
         # Calcular nuevo nivel
         nuevo_nivel = calcular_nuevo_nivel(nivel_actual, recomendacion_accion)
+        if nuevo_nivel == nivel_actual and recomendacion_accion in ('siguiente', 'anterior'):
+            recomendacion_accion = 'mantener'
         
         return {
             'nivel_actual': nivel_actual,
@@ -460,6 +492,44 @@ def actualizar_nivel_estudiante(id_estudiante, nuevo_nivel):
     except Exception as e:
         print(f"Error al actualizar nivel: {str(e)}")
         return False
+
+
+def sincronizar_progreso_estudiante(id_estudiante):
+    """Actualiza el resumen persistido con el cálculo consolidado vigente."""
+    evaluacion = calcular_puntuacion_estudiante(id_estudiante)
+    if 'error' in evaluacion:
+        return evaluacion
+
+    nivel_actual = obtener_nivel_actual(id_estudiante)
+    porcentaje = evaluacion.get('porcentaje_acierto', 0)
+
+    try:
+        conn, cursor = get_db_cursor()
+        cursor.execute(
+            "SELECT id_progreso FROM progreso WHERE id_estudiante = %s ORDER BY id_progreso DESC LIMIT 1",
+            (id_estudiante,)
+        )
+        progreso = cursor.fetchone()
+        if progreso:
+            cursor.execute(
+                "UPDATE progreso SET nivel_actual = %s, porcentaje_avance = %s WHERE id_progreso = %s",
+                (nivel_actual, porcentaje, progreso['id_progreso'])
+            )
+        else:
+            cursor.execute(
+                "INSERT INTO progreso (id_estudiante, nivel_actual, porcentaje_avance) VALUES (%s, %s, %s)",
+                (id_estudiante, nivel_actual, porcentaje)
+            )
+        conn.commit()
+        cursor.close()
+        conn.close()
+        return {
+            'nivel_actual': nivel_actual,
+            'porcentaje_avance': porcentaje,
+            'evaluacion': evaluacion
+        }
+    except Exception as e:
+        return {'error': str(e)}
 
 
 def calcular_nivel_lector_diagnostico(respuestas_diagnostico):
