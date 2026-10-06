@@ -1,4 +1,7 @@
 function porcentajeAciertos(evaluacion) {
+    if (typeof evaluacion?.porcentaje_acierto === "number") {
+        return evaluacion.porcentaje_acierto;
+    }
     const correctas = evaluacion?.respuestas_correctas || 0;
     const total = evaluacion?.total_respuestas || 0;
     return total === 0 ? 0 : Math.round((correctas / total) * 100);

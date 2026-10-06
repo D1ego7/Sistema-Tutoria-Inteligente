@@ -1,0 +1,25 @@
+/* Complementa los componentes y la paleta del Inicio existente. */
+[hidden] { display: none !important; }
+.student-dashboard > .panel, #detalle > .panel { margin-bottom: 1.5rem; }
+.filtros-docente { display: flex; flex-wrap: wrap; align-items: end; gap: 1rem; margin: 1.25rem 0; }
+.filtros-docente label { display: flex; flex-direction: column; gap: .4rem; color: #263b6c; font-size: .9rem; }
+.filtros-docente input, .filtros-docente select { font: inherit; padding: .65rem .8rem; border: 1px solid #cbd5e1; border-radius: .65rem; background: white; color: #172554; max-width: 100%; box-sizing: border-box; }
+.boton-docente, .boton-secundario { font: inherit; font-weight: 700; padding: .65rem 1rem; border-radius: .65rem; cursor: pointer; border: 0; }
+.boton-docente { background: linear-gradient(135deg, #3478f6, #2362d9); color: white; }
+.boton-secundario { background: #e6efff; color: #2861c7; }
+button:disabled { opacity: .5; cursor: default; }
+button:focus-visible, input:focus-visible, select:focus-visible { outline: 3px solid #4f46e5; outline-offset: 2px; }
+.tabla-contenedor { overflow-x: auto; }
+table { width: 100%; border-collapse: collapse; font-size: .9rem; }
+th { text-align: left; background: #eef4ff; color: #263b6c; }
+th, td { padding: .8rem; border-bottom: 1px solid #edf1f7; }
+td { overflow-wrap: anywhere; }
+.paginacion { display: flex; gap: 1rem; justify-content: center; align-items: center; padding-top: 1rem; font-size: .85rem; }
+.nota-docente, .meta-intento { color: #64748b; font-size: .85rem; }
+.intento { border-bottom: 1px solid #edf1f7; padding: 1rem 0; }
+.intento h4 { margin: .5rem 0; }
+.intento p { overflow-wrap: anywhere; white-space: pre-wrap; }
+.respuesta-correcta { color: #15803d; }
+.respuesta-incorrecta, #estado-panel.error { color: #b91c1c; }
+.seleccionado { background: #eef4ff; }
+@media (max-width:640px) { .filtros-docente label { width: 100%; } th,td { padding: .6rem; } .paginacion { gap: .5rem; } }

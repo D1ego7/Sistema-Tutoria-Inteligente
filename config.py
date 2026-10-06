@@ -2,6 +2,7 @@ from dotenv import load_dotenv
 import os
 import pymysql
 import pymysql.cursors
+from flask import g, has_request_context
 
 # Cargar variables de entorno
 load_dotenv()
@@ -17,4 +18,8 @@ db_config = {
 }
 
 def get_db_connection():
-    return pymysql.connect(**db_config)
+    connection = pymysql.connect(**db_config)
+    # Todas las rutas, incluidas las antiguas, cierran conexiones aun al fallar.
+    if has_request_context():
+        g.setdefault('db_connections', []).append(connection)
+    return connection

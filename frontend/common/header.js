@@ -34,6 +34,17 @@ document.addEventListener("DOMContentLoaded", async function() {
         const rutaActual = window.location.pathname;
         const navInicio = document.querySelector('[data-nav="inicio"]');
         const navLecturas = document.querySelector('[data-nav="lecturas"]');
+        if ([2, 3].includes(user.rol)) {
+            if (navInicio) {
+                navInicio.href = '/docente.html';
+                navInicio.querySelector('span').textContent = 'Seguimiento';
+                navInicio.classList.add('active');
+                navInicio.setAttribute('aria-current', 'page');
+            }
+            if (navLecturas) navLecturas.remove();
+            if (!rutaActual.endsWith('/docente.html')) window.location.href = '/docente.html';
+            return; // Los docentes no realizan el diagnóstico del estudiante.
+        }
         const estaEnInicio = rutaActual.endsWith("/dashboard.html") || rutaActual.endsWith("/inicio");
         const estaEnLecturas = rutaActual.endsWith("/menu.html") || rutaActual.endsWith("/reading.html");
 

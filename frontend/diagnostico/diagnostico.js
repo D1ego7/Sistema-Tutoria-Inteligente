@@ -41,7 +41,7 @@ async function cargarDiagnostico() {
         div.className = "question-card";
         div.innerHTML = `
             <p class="question-label"><strong>${index + 1}.</strong> ${p.pregunta}</p>
-            <input type="text" id="diag-${p.id}" placeholder="Tu respuesta">
+            <input type="text" id="diag-${p.id}" placeholder="Tu respuesta" maxlength="100">
         `;
         container.appendChild(div);
     });
@@ -55,6 +55,11 @@ async function enviarDiagnostico() {
     for (const p of preguntasDiagnostico) {
         const input = document.getElementById(`diag-${p.id}`);
         const respuesta = input.value.trim();
+
+        if (input.value.length > 100) {
+            alert('Cada respuesta admite un máximo de 100 caracteres.');
+            return;
+        }
 
         if (!respuesta) {
             alert("Debes responder todas las preguntas.");

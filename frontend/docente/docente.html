@@ -1,0 +1,56 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Tutor Inteligente - Seguimiento docente</title>
+    <link rel="stylesheet" href="/styles.css">
+    <link rel="stylesheet" href="/header.css">
+    <link rel="stylesheet" href="/dashboard.css">
+    <link rel="stylesheet" href="/docente.css">
+</head>
+<body>
+<div id="app-header"></div>
+<main class="student-dashboard">
+    <section class="welcome-section">
+        <div><p class="eyebrow">Espacio docente</p><h2>Seguimiento lector</h2>
+            <p class="welcome-copy">Consulta el diagnóstico y acompaña el aprendizaje de tus estudiantes.</p></div>
+    </section>
+    <p id="estado-panel" role="status" aria-live="polite"></p>
+    <section class="panel">
+        <div class="panel-heading"><div class="panel-icon blue">▥</div><div><h3>Estudiantes</h3><p>Historial de los estudiantes</p></div></div>
+        <form id="filtros" class="filtros-docente">
+            <label>Nombre<input id="buscar" type="search" maxlength="100" placeholder="Buscar estudiante"></label>
+            <label>Nivel actual<select id="nivel"><option value="">Todos</option><option>literal</option><option>inferencial</option><option>crítico</option></select></label>
+            <button class="boton-docente" type="submit">Buscar</button>
+        </form>
+        <div class="tabla-contenedor"><table><thead><tr><th>Estudiante</th><th>Diagnóstico</th><th>Nivel actual</th><th>Aciertos</th><th></th></tr></thead><tbody id="estudiantes"></tbody></table></div>
+        <div class="paginacion"><button id="anterior-lista" class="boton-secundario">Anterior</button><span id="pagina-lista"></span><button id="siguiente-lista" class="boton-secundario">Siguiente</button></div>
+    </section>
+    <section id="detalle" hidden aria-labelledby="nombre-estudiante">
+        <h2 id="nombre-estudiante" tabindex="-1"></h2>
+        <div class="summary-grid">
+            <article class="summary-card"><div class="summary-icon violet">▥</div><div><p>Nivel actual</p><strong id="nivel-actual">—</strong></div></article>
+            <article class="summary-card"><div class="summary-icon green">◎</div><div><p>Aciertos del último intento</p><strong id="aciertos">—</strong></div></article>
+            <article class="summary-card"><div class="summary-icon blue">▣</div><div><p>Lecturas completadas</p><strong id="completadas">0</strong></div></article>
+            <article class="summary-card"><div class="summary-icon orange">◷</div><div><p>Intentos registrados</p><strong id="intentos">0</strong></div></article>
+        </div>
+        <div class="dashboard-grid">
+            <article class="panel"><div class="panel-heading"><h3>Diagnóstico inicial</h3></div><p id="diagnostico"></p></article>
+            <article class="panel"><div class="panel-heading"><h3>Orientación de seguimiento</h3></div><p id="recomendacion"></p><p class="nota-docente">La recomendación no modifica el nivel desde este panel.</p></article>
+        </div>
+        <article class="panel"><div class="panel-heading"><h3>Desempeño por nivel</h3></div>
+            <div class="tabla-contenedor"><table><thead><tr><th>Nivel</th><th>Preguntas respondidas</th><th>Correctas</th><th>Aciertos</th><th>Incorrectas por revisar</th></tr></thead><tbody id="por-nivel"></tbody></table></div>
+            <p class="nota-docente">Se utiliza el último intento de cada pregunta. El porcentaje de aciertos no es una medición validada de comprensión lectora.</p>
+        </article>
+        <article class="panel"><div class="panel-heading"><h3>Historial y retroalimentación</h3></div>
+            <p class="nota-docente">Incluye todos los intentos. El tiempo es tiempo transcurrido en la actividad, no velocidad lectora.</p>
+            <div id="historial"></div>
+            <div class="paginacion"><button id="anterior-historial" class="boton-secundario">Anterior</button><span id="pagina-historial"></span><button id="siguiente-historial" class="boton-secundario">Siguiente</button></div>
+        </article>
+    </section>
+</main>
+<script src="/header.js"></script>
+<script src="/docente.js"></script>
+</body>
+</html>

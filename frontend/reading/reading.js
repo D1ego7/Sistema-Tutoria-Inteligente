@@ -1,111 +1,118 @@
-// reading.js
-document.addEventListener("DOMContentLoaded", function () {
-    const token = localStorage.getItem("token");
-    const user = JSON.parse(localStorage.getItem("user") || "{}");
-    const urlParams = new URLSearchParams(window.location.search);
-    const textId = urlParams.get('id');
+// Tiempo transcurrido visible + resolución; nunca se interpreta como velocidad lectora.
+let enviandoRespuestas = false;
+let actividadLista = false;
+const inicioPorPregunta = new Map();
 
-    if (!token || !textId) {
-        window.location.href = "/";
-        return;
-    }
-
-    const userGreeting = document.getElementById("user-greeting");
-    if (userGreeting) {
-        userGreeting.textContent = `Hola, ${user.nombre || 'Estudiante'}`;
-    }
-
-    loadText(textId);
-    loadQuestions(textId);
-    loadPreviousAnswers(textId);
-
-    const logoutBtn = document.getElementById("logout-btn");
-    if (logoutBtn) {
-        logoutBtn.addEventListener("click", function () {
-            localStorage.removeItem("token");
-            localStorage.removeItem("user");
-            window.location.href = "/";
-        });
-    }
-
-    document.getElementById("back-btn").addEventListener("click", function () {
-        window.location.href = "menu.html";
+function iniciarTiempos(cards = document.querySelectorAll('.question-card')) {
+    const ahora = performance.now();
+    cards.forEach(card => {
+        if (card.querySelector('input:not(:disabled)')) {
+            inicioPorPregunta.set(Number(card.dataset.idPregunta), ahora);
+        }
     });
+}
 
-    document.getElementById("submit-answers").addEventListener("click", async function () {
-        const token = localStorage.getItem("token");
-        const questionCards = [...document.querySelectorAll(".question-card")];
-        const respuestas = questionCards.map(obtenerRespuestaDePregunta);
+function segundosTranscurridos(idPregunta, ahora = performance.now()) {
+    const inicio = inicioPorPregunta.get(idPregunta);
+    if (inicio === undefined) throw new Error('La actividad todavía no está lista');
+    return Math.ceil(Math.max(0, ahora - inicio) / 1000);
+}
 
-        if (respuestas.some(respuesta => !respuesta)) {
-            questionCards.forEach((card, index) => {
-                card.classList.toggle("question-unanswered", !respuestas[index]);
-            });
-            showToast("Debes responder todas las preguntas", false);
-            return;
-        }
-
-        let enviadas = 0;
-        let correctas = 0;
-
-        for (const respuestaPregunta of respuestas) {
-            const { idPregunta, respuesta, idOpcion } = respuestaPregunta;
-
-            try {
-                const res = await fetch("http://127.0.0.1:5000/respuesta-con-feedback", {
-                    method: "POST",
-                    headers: {
-                        "Content-Type": "application/json",
-                        "Authorization": `Bearer ${token}`
-                    },
-                    body: JSON.stringify({
-                        id_pregunta: idPregunta,
-                        respuesta: respuesta,
-                        id_opcion: idOpcion,
-                        tiempo_respuesta: 10
-                    })
-                });
-
-                const data = await res.json();
-
-                if (!res.ok) {
-                    console.error("Error del servidor:", data);
-                    showToast(data.error || "No se pudo guardar la respuesta", false);
-                    continue;
-                }
-
-                console.log("Respuesta guardada:", data);
-                enviadas++;
-                if (data.es_correcta) correctas++;
-
-                // Mostrar toast con resultado de cada respuesta
-                const mensaje = data.es_correcta ? "✓ Correcto" : "✗ Incorrecto";
-                showToast(mensaje, data.es_correcta);
-
-            } catch (err) {
-                console.error("Error enviando respuesta:", err);
-                showToast("Error al guardar respuesta", false);
-            }
-        }
-
-        // Mostrar modal con resumen de sesión y retroalimentación del tutor
-        const feedbackRes = await fetch("http://127.0.0.1:5000/feedback-sesion", {
-            method: "POST",
-            headers: {
-                "Content-Type": "application/json",
-                "Authorization": `Bearer ${token}`
-            },
-            body: JSON.stringify({ id_texto: parseInt(textId) })
+function prepararReintento() {
+    const cards = [...document.querySelectorAll('.question-card')];
+    cards.forEach(card => {
+        if (card.classList.contains('answer-correct')) return;
+        card.querySelectorAll('input').forEach(input => {
+            if (input.type === 'radio') input.checked = false;
+            else input.value = '';
+            input.disabled = false;
         });
+        card.classList.remove('answer-incorrect', 'question-unanswered');
+    });
+    iniciarTiempos(cards);
+    document.getElementById('submit-answers').style.display = 'block';
+    const container = document.getElementById('button-container');
+    if (container) container.style.display = 'none';
+}
 
-        const feedbackData = await feedbackRes.json();
-        if (!feedbackRes.ok) {
-            console.error("Error obteniendo feedback:", feedbackData);
-            showToast(feedbackData.error || "No se pudo generar la retroalimentación", false);
+document.addEventListener('DOMContentLoaded', async function () {
+    const token = localStorage.getItem('token');
+    const user = JSON.parse(localStorage.getItem('user') || '{}');
+    const textId = new URLSearchParams(window.location.search).get('id');
+    if (!token || !textId) { window.location.href = '/'; return; }
+    const greeting = document.getElementById('user-greeting');
+    if (greeting) greeting.textContent = `Hola, ${user.nombre || 'Estudiante'}`;
+    const button = document.getElementById('submit-answers');
+    button.disabled = true;
+    try {
+        await Promise.all([loadText(textId), loadQuestions(textId)]);
+        await loadPreviousAnswers(textId);
+        iniciarTiempos();
+        actividadLista = true;
+        button.disabled = false;
+    } catch (error) {
+        showToast(error.message || 'No se pudo cargar la actividad', false);
+    }
+    const logout = document.getElementById('logout-btn');
+    if (logout) logout.addEventListener('click', () => {
+        localStorage.removeItem('token'); localStorage.removeItem('user');
+        window.location.href = '/';
+    });
+    document.getElementById('back-btn').addEventListener('click', () => { window.location.href = '/menu.html'; });
+    button.addEventListener('click', async () => {
+        if (!actividadLista || enviandoRespuestas) return;
+        const cards = [...document.querySelectorAll('.question-card')]
+            .filter(card => card.querySelector('input:not(:disabled)'));
+        if (!cards.length) return;
+        const answers = cards.map(obtenerRespuestaDePregunta);
+        if (answers.some(answer => !answer)) {
+            cards.forEach((card, i) => card.classList.toggle('question-unanswered', !answers[i]));
+            showToast('Debes responder todas las preguntas habilitadas', false);
             return;
         }
-
-        showSummaryModal(enviadas, correctas, feedbackData);
+        if (answers.some(answer => !answer.idOpcion && answer.respuesta.length > 100)) {
+            showToast('Cada respuesta admite un máximo de 100 caracteres', false);
+            return;
+        }
+        const ahora = performance.now(); // Congelar antes de la espera HTTP.
+        const payload = answers.map(answer => ({
+            id_pregunta: answer.idPregunta, respuesta: answer.respuesta,
+            id_opcion: answer.idOpcion,
+            tiempo_respuesta: segundosTranscurridos(answer.idPregunta, ahora)
+        }));
+        enviandoRespuestas = true;
+        button.disabled = true;
+        let guardadas = false;
+        try {
+            const headers = { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` };
+            const res = await fetch('/respuestas-lectura', {
+                method: 'POST', headers,
+                body: JSON.stringify({ id_texto: Number(textId), respuestas: payload })
+            });
+            const data = await res.json();
+            if (!res.ok) throw new Error(data.error || 'No se guardaron las respuestas');
+            guardadas = true;
+            data.respuestas.forEach(result => {
+                const card = cards.find(card => Number(card.dataset.idPregunta) === result.id_pregunta);
+                card.classList.remove('answer-correct', 'answer-incorrect', 'question-unanswered');
+                card.classList.add(result.es_correcta ? 'answer-correct' : 'answer-incorrect');
+                card.querySelectorAll('input').forEach(input => { input.disabled = true; });
+            });
+            const feedbackRes = await fetch('/feedback-sesion', {
+                method: 'POST', headers, body: JSON.stringify({ id_texto: Number(textId) })
+            });
+            const feedback = await feedbackRes.json();
+            if (!feedbackRes.ok) throw new Error(feedback.error || 'No se pudo cargar el resumen');
+            showSummaryModal(data.respuestas.length,
+                data.respuestas.filter(answer => answer.es_correcta).length, feedback);
+            button.style.display = 'none';
+        } catch (error) {
+            showToast((guardadas ? 'Respuestas guardadas. No se pudo mostrar el resumen: ' : '') + error.message, false);
+            if (guardadas && document.querySelector('.answer-incorrect')) showRetryButton();
+        } finally {
+            enviandoRespuestas = false;
+            button.disabled = false;
+        }
     });
 });
 
@@ -176,7 +183,7 @@ function showSummaryModal(answered, correct, feedbackData) {
     const recommendationBox = document.getElementById("recommendation-box");
     if (percentage >= 80) {
         recommendationBox.style.display = "block";
-        document.getElementById("recommendation-text").textContent = "¡Excelente! Respondiste muy bien. Puedes probar un poco más difícil si quieres.";
+        document.getElementById("recommendation-text").textContent = feedbackData.mensaje_tutor;
     } else if (percentage < 50) {
         recommendationBox.style.display = "block";
         document.getElementById("recommendation-text").textContent = "No te preocupes. Practica un poco más en este mismo nivel y lo harás mejor.";
@@ -191,91 +198,58 @@ function showSummaryModal(answered, correct, feedbackData) {
         window.location.href = "menu.html";
     };
 
-    document.getElementById("btn-retry-reading").onclick = function () {
-        document.getElementById("summary-modal").style.display = "none";
-        const inputs = document.querySelectorAll(".question-card input");
-        inputs.forEach(input => {
-            if (!input.disabled) {
-                input.value = "";
-                input.style.backgroundColor = "#ffffff";
-                input.style.borderColor = "#d1d5db";
-                input.style.color = "#000000";
-            }
-        });
-        const submitBtn = document.getElementById("submit-answers");
-        const buttonContainer = document.getElementById("button-container");
-        if (submitBtn && submitBtn.style.display === "none") {
-            submitBtn.style.display = "block";
-        }
-        if (buttonContainer) {
-            buttonContainer.style.display = "none";
-        }
+    document.getElementById('btn-retry-reading').onclick = () => {
+        document.getElementById('summary-modal').style.display = 'none';
+        prepararReintento();
     };
+    let apply = document.getElementById('apply-recommended-level');
+    if (!apply) {
+        apply = document.createElement('button');
+        apply.id = 'apply-recommended-level';
+        apply.className = 'btn-primary';
+        document.querySelector('.modal-footer').appendChild(apply);
+    }
+    apply.textContent = 'Aplicar nivel recomendado';
+    apply.style.display = feedbackData.nuevo_nivel !== feedbackData.nivel_actual ? 'block' : 'none';
+    apply.onclick = async () => {
+        apply.disabled = true;
+        try {
+            const res = await fetch('/aplicar-nivel-recomendado', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${localStorage.getItem('token')}` },
+                body: JSON.stringify({ nivel_actual: feedbackData.nivel_actual, nuevo_nivel: feedbackData.nuevo_nivel })
+            });
+            const data = await res.json();
+            if (!res.ok) throw new Error(data.error || 'No se pudo aplicar el nivel');
+            window.location.href = '/menu.html';
+        } catch (error) { showToast(error.message, false); }
+        finally { apply.disabled = false; }
+    };
+
 }
 
 async function loadPreviousAnswers(textId) {
-    const token = localStorage.getItem("token");
-    try {
-        const res = await fetch(`http://127.0.0.1:5000/respuestas-texto/${textId}`, {
-            headers: { "Authorization": `Bearer ${token}` }
+    const res = await fetch(`/respuestas-texto/${textId}`, {
+        headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'No se pudieron cargar los intentos previos');
+    const answers = data.respuestas || {};
+    let incorrectas = 0;
+    Object.entries(answers).forEach(([id, answer]) => {
+        const card = document.querySelector(`[data-id-pregunta="${id}"]`);
+        if (!card) return;
+        const text = card.querySelector('input[type="text"]');
+        if (text) text.value = answer.respuesta;
+        else card.querySelectorAll('input[type="radio"]').forEach(radio => {
+            radio.checked = radio.dataset.textoOpcion === answer.respuesta;
         });
-
-        if (!res.ok) {
-            console.log("No hay respuestas previas");
-            return;
-        }
-
-        const data = await res.json();
-        const respuestas = data.respuestas || {};
-        const todasCorrectas = data.todas_correctas || false;
-
-        // Esperar a que los inputs estén listos
-        setTimeout(() => {
-            // Contar respuestas correctas e incorrectas
-            let totalRespuestas = Object.keys(respuestas).length;
-            let respuestasCorrectas = 0;
-            let respuestasIncorrectas = 0;
-
-            // Prellenar inputs con las respuestas
-            for (const idPregunta in respuestas) {
-                const card = document.querySelector(`[data-id-pregunta="${idPregunta}"]`);
-                if (!card) continue;
-
-                const respuesta = respuestas[idPregunta];
-                const input = card.querySelector("input[type='text']");
-                const radios = [...card.querySelectorAll("input[type='radio']")];
-
-                if (input) {
-                    input.value = respuesta.respuesta;
-                } else {
-                    const radioSeleccionado = radios.find(radio => radio.dataset.textoOpcion === respuesta.respuesta);
-                    if (radioSeleccionado) radioSeleccionado.checked = true;
-                }
-
-                card.classList.add(respuesta.es_correcta ? "answer-correct" : "answer-incorrect");
-                card.querySelectorAll("input").forEach(control => {
-                    control.disabled = true;
-                });
-
-                if (respuesta.es_correcta) {
-                    respuestasCorrectas++;
-                } else {
-                    respuestasIncorrectas++;
-                }
-            }
-
-            // Si todas son correctas, aplicar estilos a todos y ocultar botones
-            if (todasCorrectas && totalRespuestas > 0) {
-                document.getElementById("submit-answers").style.display = "none";
-            } else if (respuestasIncorrectas > 0) {
-                document.getElementById("submit-answers").style.display = "none";
-                showRetryButton();
-            }
-        }, 500);
-
-    } catch (err) {
-        console.error("Error cargando respuestas previas:", err);
-    }
+        card.classList.add(answer.es_correcta ? 'answer-correct' : 'answer-incorrect');
+        card.querySelectorAll('input').forEach(input => { input.disabled = true; });
+        if (!answer.es_correcta) incorrectas++;
+    });
+    if (data.todas_correctas) document.getElementById('submit-answers').style.display = 'none';
+    else if (incorrectas) showRetryButton();
 }
 
 function showRetryButton() {
@@ -296,24 +270,7 @@ function showRetryButton() {
     retryBtn.textContent = "🔄 Volver a intentar";
     retryBtn.style.flex = "1";
 
-    retryBtn.addEventListener("click", function () {
-        // Limpiar SOLO los inputs incorrectos (que no están deshabilitados)
-        // Las respuestas correctas (deshabilitadas) permanecen intactas
-        const questionCards = document.querySelectorAll(".question-card");
-        questionCards.forEach(card => {
-            if (card.classList.contains("answer-incorrect")) {
-                card.querySelectorAll("input").forEach(input => {
-                    input.value = "";
-                    input.checked = false;
-                    input.disabled = false;
-                });
-                card.classList.remove("answer-incorrect", "question-unanswered");
-            }
-        });
-        // Mostrar botón de enviar de nuevo y ocultar retry
-        submitBtn.style.display = "block";
-        container.style.display = "none";
-    });
+    retryBtn.addEventListener('click', prepararReintento);
 
     const submitBtnClone = document.createElement("button");
     submitBtnClone.id = "submit-answers-copy";
@@ -330,7 +287,7 @@ function showRetryButton() {
 async function loadText(id) {
     const token = localStorage.getItem("token");
     try {
-        const res = await fetch(`http://127.0.0.1:5000/texto/${id}`, {
+        const res = await fetch(`/texto/${id}`, {
             headers: { "Authorization": `Bearer ${token}` }
         });
 
@@ -341,25 +298,29 @@ async function loadText(id) {
         }
 
         const text = await res.json();
+        if (!res.ok) throw new Error(text.error || 'No se pudo cargar la lectura');
         document.getElementById("text-title").textContent = text.titulo;
         document.getElementById("reading-emoji").textContent = getEmojiForText(text.titulo);
         document.getElementById("text-body").textContent = text.contenido;
     } catch (err) {
-        console.error("Error cargando texto:", err);
+        throw err;
     }
 }
 
 async function loadQuestions(id) {
     const token = localStorage.getItem("token");
     try {
-        const res = await fetch(`http://127.0.0.1:5000/preguntas/${id}`, {
+        const res = await fetch(`/preguntas/${id}`, {
             headers: { "Authorization": `Bearer ${token}` }
         });
 
         const questions = await res.json();
+        if (!res.ok || !Array.isArray(questions) || !questions.length) {
+            throw new Error(questions.error || 'La lectura no tiene preguntas disponibles');
+        }
         displayQuestions(questions);
     } catch (err) {
-        console.error("Error cargando preguntas:", err);
+        throw err;
     }
 }
 
@@ -401,6 +362,7 @@ function displayQuestions(questions) {
             input.type = "text";
             input.id = `q-${q.id_pregunta}`;
             input.placeholder = "Tu respuesta";
+            input.maxLength = 100;
             div.appendChild(input);
         }
 

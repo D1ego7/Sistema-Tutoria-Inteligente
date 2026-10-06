@@ -29,3 +29,28 @@ htmlcov/
 .idea/
 .DS_Store
 Thumbs.db
+
+# Documentacion interna, entregables y pruebas solo locales
+/docs/
+/entregables/
+/tests/
+
+# Documentos y capturas de trabajo
+*.doc
+*.docx
+*.pdf
+*.xls
+*.xlsx
+*.ppt
+*.pptx
+~$*
+
+# Archivos temporales, respaldos y salidas locales
+*.tmp
+*.bak
+/tmp/
+/temp/
+/output/
+/outputs/
+/backups/
+/respaldos/

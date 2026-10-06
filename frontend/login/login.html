@@ -33,7 +33,7 @@
                     <label for="email">Correo electrónico</label>
                     <div class="input-wrapper">
                         <span class="icon input-icon">✉️</span>
-                        <input type="email" id="email" placeholder="estudiante@escuela.com" required>
+                        <input type="email" id="email" placeholder="estudiante@escuela.com" maxlength="100" required>
                     </div>
                 </div>
 
@@ -41,7 +41,7 @@
                     <label for="password">Contraseña</label>
                     <div class="input-wrapper">
                         <span class="icon lock-icon">🔒</span>
-                        <input type="password" id="password" placeholder="Contraseña" required>
+                        <input type="password" id="password" placeholder="Contraseña" maxlength="72" required>
                         <span class="icon eye-icon" onclick="togglePassword()">
                             <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                                 <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>

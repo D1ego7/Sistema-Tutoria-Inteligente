@@ -1,9 +1,12 @@
 from config import get_db_connection
 import unicodedata
 
-def obtener_nivel_actual(id_estudiante):
+def obtener_nivel_actual(id_estudiante, cursor=None):
+    propio = cursor is None
+    conn = None
     try:
-        conn, cursor = get_db_cursor()
+        if propio:
+            conn, cursor = get_db_cursor()
 
         cursor.execute("""
             SELECT nivel_actual
@@ -17,8 +20,6 @@ def obtener_nivel_actual(id_estudiante):
 
         if resultado:
             nivel = resultado['nivel_actual'] if isinstance(resultado, dict) else resultado[0]
-            cursor.close()
-            conn.close()
             return nivel.strip().lower()
 
         cursor.execute("""
@@ -31,9 +32,6 @@ def obtener_nivel_actual(id_estudiante):
 
         resultado = cursor.fetchone()
 
-        cursor.close()
-        conn.close()
-
         if resultado:
             nivel = resultado['nivel_asignado'] if isinstance(resultado, dict) else resultado[0]
             return nivel.strip().lower()
@@ -41,8 +39,14 @@ def obtener_nivel_actual(id_estudiante):
         return 'literal'
 
     except Exception as e:
+        if not propio:
+            raise
         print(f"Error al obtener nivel actual: {str(e)}")
-        return 'literal'
+        raise
+    finally:
+        if propio and conn:
+            cursor.close()
+            conn.close()
 
 
 def calcular_nuevo_nivel(nivel_actual, recomendacion):
@@ -129,7 +133,7 @@ def get_db_cursor():
     return conn, cursor
 
 
-def calcular_puntuacion_estudiante(id_estudiante, limite_respuestas=None):
+def calcular_puntuacion_estudiante(id_estudiante, limite_respuestas=None, cursor=None):
     """
     Calcula la puntuación general y por nivel de un estudiante
     
@@ -140,8 +144,11 @@ def calcular_puntuacion_estudiante(id_estudiante, limite_respuestas=None):
     Returns:
         dict con estadísticas de desempeño
     """
+    propio = cursor is None
+    conn = None
     try:
-        conn, cursor = get_db_cursor()
+        if propio:
+            conn, cursor = get_db_cursor()
         
         # Consolidar el desempeño usando únicamente el intento más reciente
         # de cada pregunta. Así, los reintentos no inflan ni castigan el avance.
@@ -166,8 +173,6 @@ def calcular_puntuacion_estudiante(id_estudiante, limite_respuestas=None):
         
         cursor.execute(query, tuple(parametros))
         respuestas = cursor.fetchall()
-        cursor.close()
-        conn.close()
         
         if not respuestas:
             return {
@@ -220,7 +225,13 @@ def calcular_puntuacion_estudiante(id_estudiante, limite_respuestas=None):
             'tendencia': tendencia
         }
     except Exception as e:
+        if not propio:
+            raise
         return {'error': str(e)}
+    finally:
+        if propio and conn:
+            cursor.close()
+            conn.close()
 
 
 def detectar_patrones_error(id_estudiante, limite_respuestas=20):
@@ -317,7 +328,7 @@ def detectar_patrones_error(id_estudiante, limite_respuestas=20):
         
         if tiempo_promedio_error > 120:  # Si tarda más de 2 minutos
             patrones['recomendaciones'].append(
-                'Observamos que tardas mucho tiempo. Intenta leer más rápido sin perder comprensión.'
+                'Tómate el tiempo que necesites y revisa el texto antes de responder. El tiempo registrado no mide tu velocidad lectora.'
             )
         
         if patrones['tipos_de_error'] and patrones['tipos_de_error'][0]['tipo'] == 'respuesta_incompleta':
@@ -330,7 +341,7 @@ def detectar_patrones_error(id_estudiante, limite_respuestas=20):
         return {'error': str(e)}
 
 
-def recomendar_nivel_siguiente(id_estudiante):
+def recomendar_nivel_siguiente(id_estudiante, cursor=None):
     """
     Recomienda el siguiente nivel de dificultad basado en desempeño
     
@@ -341,16 +352,16 @@ def recomendar_nivel_siguiente(id_estudiante):
         dict con recomendación de nivel y nuevo_nivel calculado
     """
     try:
-        puntuacion = calcular_puntuacion_estudiante(id_estudiante, limite_respuestas=10)
+        puntuacion = calcular_puntuacion_estudiante(id_estudiante, limite_respuestas=10, cursor=cursor)
         
         if 'error' in puntuacion:
             return {'error': puntuacion['error']}
         
         # Obtener nivel actual
-        nivel_actual = obtener_nivel_actual(id_estudiante)
+        nivel_actual = obtener_nivel_actual(id_estudiante, cursor=cursor)
         
         if puntuacion['total_respuestas'] == 0:
-            nuevo_nivel = 'literal'
+            nuevo_nivel = nivel_actual
             return {
                 'nivel_actual': nivel_actual,
                 'recomendacion': 'mantener',
@@ -570,15 +581,10 @@ def crear_plan_reforzamiento(id_estudiante):
     """
     Crea un plan de reforzamiento según el desempeño por nivel lector.
     """
-    evaluacion = calcular_puntuacion_estudiante(id_estudiante, limite_respuestas=20)
+    evaluacion = calcular_puntuacion_estudiante(id_estudiante)
 
     if 'error' in evaluacion:
-        return {
-            "nivel_reforzar": "literal",
-            "mensaje": "No se pudo analizar el desempeño. Se recomienda iniciar con textos literales.",
-            "textos_recomendados": "literal",
-            "desbloquear_siguiente": False
-        }
+        return evaluacion
 
     por_nivel = evaluacion.get('por_nivel', {})
     porcentaje_general = evaluacion.get('porcentaje_acierto', 0)
@@ -609,13 +615,15 @@ def crear_plan_reforzamiento(id_estudiante):
     # Buen desempeño
     if porcentaje_general >= 80:
         recomendacion_nivel = recomendar_nivel_siguiente(id_estudiante)
+        if 'error' in recomendacion_nivel:
+            return recomendacion_nivel
         nuevo_nivel = recomendacion_nivel.get('nuevo_nivel', nivel_bajo)
 
         return {
             "nivel_reforzar": None,
-            "mensaje": f"¡Excelente desempeño! Puedes avanzar al nivel {nuevo_nivel}.",
+            "mensaje": recomendacion_nivel.get('razon', 'Continúa practicando en tu nivel actual.'),
             "textos_recomendados": nuevo_nivel,
-            "desbloquear_siguiente": True
+            "desbloquear_siguiente": recomendacion_nivel.get('recomendacion') == 'siguiente'
         }
 
     # Bajo desempeño por nivel

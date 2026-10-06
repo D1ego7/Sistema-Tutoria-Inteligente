@@ -84,7 +84,7 @@ function mostrarActividad(actividades) {
 
 function formatearFecha(fecha) {
     if (!fecha) return "Sin fecha";
-    const date = new Date(`${fecha}T00:00:00`);
+    const date = new Date(`${String(fecha).slice(0, 10)}T00:00:00`);
     return date.toLocaleDateString("es-PE", { day: "numeric", month: "short", year: "numeric" });
 }
 

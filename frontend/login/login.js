@@ -29,6 +29,11 @@ async function login() {
     }
     error.textContent = "";
 
+    if (email.length > 100 || new TextEncoder().encode(password).length > 72) {
+        error.textContent = 'El correo admite hasta 100 caracteres y la contraseña hasta 72 bytes (las tildes pueden ocupar más de uno).';
+        return;
+    }
+
     try {
         const res = await fetch("http://127.0.0.1:5000/login", {
             method: "POST",
@@ -45,10 +50,14 @@ async function login() {
             localStorage.setItem("token", data.access_token);
             localStorage.setItem("user", JSON.stringify(data.user));
 
+            if ([2, 3].includes(data.user.rol)) {
+                window.location.href = '/docente.html';
+                return;
+            }
             if (data.user.rol !== 1) {
                 localStorage.removeItem("token");
                 localStorage.removeItem("user");
-                error.textContent = "El panel para docentes y administradores aún no está habilitado.";
+                error.textContent = "La cuenta no tiene un rol habilitado.";
                 return;
             }
 
