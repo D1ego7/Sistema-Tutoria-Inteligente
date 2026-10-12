@@ -1,7 +1,8 @@
-"""Consultas de seguimiento: solo lectura y desempeño por último intento."""
+"""Consultas de seguimiento y desempeño por último intento evaluado vigente."""
 from services.actividades import ActivityError
+from services.banco_versionado import SQL_TEXTO_ACTIVO
 from services.lectura import entero_positivo, obtener_estado_lecturas
-from services.tutoring import calcular_puntuacion_estudiante, recomendar_nivel_siguiente
+from services.tutoring import calcular_puntuacion_estudiante, recomendar_nivel_siguiente, SQL_NIVEL_ACTUAL
 
 
 def validar_acceso_docente(cursor, usuario):
@@ -32,23 +33,28 @@ def listar_estudiantes(cursor, args):
     if len(buscar) > 100 or nivel not in ('', 'literal', 'inferencial', 'crítico'):
         raise ValueError('Filtro de búsqueda o nivel inválido')
     # LOCATE evita tratar % y _ del usuario como comodines SQL.
-    condicion = 'WHERE (%s = \'\' OR LOCATE(%s, u.nombre) > 0) AND (%s = \'\' OR e.nivel_actual = %s)'
+    condicion = f"WHERE (%s = '' OR LOCATE(%s, u.nombre) > 0) AND (%s = '' OR {SQL_NIVEL_ACTUAL} = %s)"
     params = (buscar, buscar, nivel, nivel)
     cursor.execute('SELECT COUNT(*) AS total FROM estudiantes e JOIN usuarios u ON u.id_usuario=e.id_usuario ' + condicion, params)
     total = cursor.fetchone()['total']
-    cursor.execute('''SELECT e.id_estudiante, u.nombre, e.nivel_actual,
+    cursor.execute(f'''SELECT e.id_estudiante, u.nombre, {SQL_NIVEL_ACTUAL} AS nivel_actual,
         d.puntaje AS puntaje_diagnostico, d.nivel_asignado AS nivel_diagnostico,
         COALESCE(a.respondidas,0) AS respondidas, COALESCE(a.correctas,0) AS correctas,
+        COALESCE(a.pendientes,0) AS pendientes,
         a.ultima_actividad
         FROM estudiantes e JOIN usuarios u ON u.id_usuario=e.id_usuario
         LEFT JOIN diagnostico d ON d.id_diagnostico=(SELECT MAX(d2.id_diagnostico) FROM diagnostico d2 WHERE d2.id_estudiante=e.id_estudiante)
         LEFT JOIN (
-            SELECT r.id_estudiante, COUNT(*) AS respondidas,
+            SELECT r.id_estudiante, COUNT(r.es_correcta) AS respondidas,
+                   SUM(r.es_correcta IS NULL) AS pendientes,
                    SUM(r.es_correcta=1) AS correctas, MAX(r.fecha) AS ultima_actividad
             FROM respuestas_estudiante r
+            JOIN preguntas pa ON pa.id_pregunta=r.id_pregunta
+            JOIN textos t ON t.id_texto=pa.id_texto
             JOIN (SELECT id_estudiante,id_pregunta,MAX(id_respuesta_est) AS ultimo
                   FROM respuestas_estudiante GROUP BY id_estudiante,id_pregunta) ult
               ON ult.ultimo=r.id_respuesta_est
+            WHERE {SQL_TEXTO_ACTIVO}
             GROUP BY r.id_estudiante
         ) a ON a.id_estudiante=e.id_estudiante
         ''' + condicion + ' ORDER BY u.nombre,e.id_estudiante LIMIT %s OFFSET %s', params + (limite, offset))
@@ -62,7 +68,7 @@ def listar_estudiantes(cursor, args):
 
 def detalle_estudiante(cursor, sid, args):
     pagina, limite, offset = parametros_pagina(args)
-    cursor.execute('''SELECT e.id_estudiante,e.nivel_actual,u.nombre
+    cursor.execute(f'''SELECT e.id_estudiante,{SQL_NIVEL_ACTUAL} AS nivel_actual,u.nombre
                       FROM estudiantes e JOIN usuarios u ON u.id_usuario=e.id_usuario
                       WHERE e.id_estudiante=%s''', (sid,))
     estudiante = cursor.fetchone()
@@ -81,7 +87,10 @@ def detalle_estudiante(cursor, sid, args):
     cursor.execute('SELECT COUNT(*) AS total FROM respuestas_estudiante WHERE id_estudiante=%s', (sid,))
     total = cursor.fetchone()['total']
     cursor.execute('''SELECT r.id_respuesta_est,r.id_pregunta,r.respuesta,r.es_correcta,
-                      r.tiempo_respuesta,r.fecha,p.enunciado,p.tipo,t.titulo,
+                      r.tiempo_respuesta,r.fecha,p.enunciado,p.tipo,p.orden,t.titulo,t.id_texto,
+                      EXISTS(SELECT 1 FROM versiones_lecturas v WHERE v.id_texto_original=t.id_texto) AS archivada,
+                      rv.fecha_revision,rv.id_usuario_revisor,rv.pertinencia,rv.sustento,
+                      rv.coherencia,rv.devolucion,
                       f.mensaje AS retroalimentacion,
                       (r.id_respuesta_est=(SELECT MAX(r2.id_respuesta_est)
                        FROM respuestas_estudiante r2 WHERE r2.id_estudiante=r.id_estudiante
@@ -89,11 +98,13 @@ def detalle_estudiante(cursor, sid, args):
                       FROM respuestas_estudiante r JOIN preguntas p ON p.id_pregunta=r.id_pregunta
                       JOIN textos t ON t.id_texto=p.id_texto
                       LEFT JOIN retroalimentacion f ON f.id_respuesta_est=r.id_respuesta_est
+                      LEFT JOIN revisiones_criticas rv ON rv.id_respuesta_est=r.id_respuesta_est
                       WHERE r.id_estudiante=%s ORDER BY r.id_respuesta_est DESC LIMIT %s OFFSET %s''', (sid, limite, offset))
     historial = cursor.fetchall()
     for fila in historial:
         fila['fecha'] = str(fila['fecha']) if fila['fecha'] else None
-        fila['es_correcta'] = bool(fila['es_correcta'])
+        fila['es_correcta'] = None if fila['es_correcta'] is None else bool(fila['es_correcta'])
+        fila['fecha_revision'] = str(fila['fecha_revision']) if fila['fecha_revision'] else None
         fila['ultimo_intento'] = bool(fila['ultimo_intento'])
     return {'estudiante': estudiante, 'diagnostico': diagnostico, 'evaluacion': evaluacion,
             'recomendacion': recomendacion, 'lecturas_completadas': sum(s['completada'] for s in estados.values()),

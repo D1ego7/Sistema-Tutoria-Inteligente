@@ -1,11 +1,20 @@
 """Registro transaccional de actividades, compartido por las rutas de respuesta."""
 from services.lectura import entero_positivo, validar_respuesta, validar_tiempo, evaluar_respuesta_abierta
+from services.respuestas_aceptadas import alternativas_para_pregunta
 from services.tutoring import (
     obtener_nivel_actual, normalizar_texto, calcular_puntuacion_estudiante,
     generar_feedback_personalizado,
 )
 
 NIVELES = ['literal', 'inferencial', 'crítico']
+
+
+def requiere_revision_docente(pregunta):
+    """La revisión depende de la pregunta abierta, no del nivel del texto."""
+    return pregunta.get('tipo_respuesta') == 'texto' and (
+        normalizar_texto(pregunta.get('tipo') or '') in ('inferencial', 'critico')
+        or bool(pregunta.get('revision_docente'))
+    )
 
 
 class ActivityError(Exception):
@@ -28,7 +37,7 @@ def cargar_actividad(cursor, usuario, pregunta_id, estudiante=None):
     if not cursor.fetchone():
         raise ActivityError('Debes completar el diagnóstico inicial', 403)
     cursor.execute('''
-        SELECT p.id_pregunta, p.tipo, p.tipo_respuesta, p.id_texto, t.nivel, rc.respuesta
+        SELECT p.id_pregunta, p.enunciado, p.tipo, p.tipo_respuesta, p.id_texto, t.nivel, rc.respuesta
         FROM preguntas p JOIN textos t ON t.id_texto = p.id_texto
         LEFT JOIN respuestas_correctas rc ON rc.id_pregunta = p.id_pregunta
         WHERE p.id_pregunta = %s
@@ -36,6 +45,11 @@ def cargar_actividad(cursor, usuario, pregunta_id, estudiante=None):
     pregunta = cursor.fetchone()
     if not pregunta:
         raise ActivityError('Pregunta no encontrada', 404)
+    cursor.execute('SELECT 1 FROM versiones_lecturas WHERE id_texto_original=%s', (pregunta['id_texto'],))
+    if cursor.fetchone():
+        raise ActivityError('Esta lectura tiene una nueva versión. Abre el catálogo actualizado.',409)
+    cursor.execute('SELECT 1 FROM preguntas_revision WHERE id_pregunta=%s',(pregunta_id,))
+    pregunta['revision_docente'] = bool(cursor.fetchone())
     nivel = obtener_nivel_actual(sid, cursor=cursor)
     indice = NIVELES.index(nivel) if nivel in NIVELES else 0
     if normalizar_texto(pregunta['nivel']) not in [normalizar_texto(n) for n in NIVELES[:indice+1]]:
@@ -58,9 +72,11 @@ def calificar_actividad(cursor, pregunta_id, pregunta, data):
             raise ActivityError('La pregunta no tiene una clave de evaluación configurada', 409)
         return opcion['texto_opcion'], bool(opcion['es_correcta']), correcta['texto_opcion']
     respuesta = validar_respuesta(data.get('respuesta'))
+    if requiere_revision_docente(pregunta):
+        return respuesta, None, ''
     if not pregunta['respuesta']:
         raise ActivityError('La pregunta no tiene una clave de evaluación configurada', 409)
-    return respuesta, evaluar_respuesta_abierta(respuesta, pregunta['respuesta']), pregunta['respuesta']
+    return respuesta, evaluar_respuesta_abierta(respuesta, alternativas_para_pregunta(pregunta)), pregunta['respuesta']
 
 
 def persistir_progreso(cursor, sid, nivel):
@@ -107,10 +123,15 @@ def registrar_actividades(usuario, data, get_cursor, lote=False):
                 VALUES (%s, %s, %s, %s, %s, NOW())
             ''', (estudiante['id_estudiante'], pid, respuesta, correcta, tiempo))
             respuesta_id = cursor.lastrowid
-            feedback = generar_feedback_personalizado(pid, correcta, respuesta, esperada, pregunta['tipo'])
+            if correcta is None:
+                feedback = {'mensaje':'Respuesta enviada. Pendiente de revisión docente.',
+                            'explicacion':'El profesor revisará tu respuesta y podrá añadir retroalimentación.', 'pista':''}
+                cursor.execute('INSERT INTO revisiones_criticas (id_respuesta_est) VALUES (%s)',(respuesta_id,))
+            else:
+                feedback = generar_feedback_personalizado(pid, correcta, respuesta, esperada, pregunta['tipo'])
             mensaje = ' '.join(feedback[k] for k in ['mensaje', 'explicacion', 'pista'] if feedback.get(k))
             cursor.execute('INSERT INTO retroalimentacion (id_respuesta_est, mensaje, tipo) VALUES (%s, %s, %s)',
-                           (respuesta_id, mensaje, 'correcta' if correcta else 'refuerzo_'+pregunta['tipo']))
+                           (respuesta_id, mensaje, 'pendiente_revision' if correcta is None else 'correcta' if correcta else 'refuerzo_'+pregunta['tipo']))
             resultados.append({'id_pregunta': pid, 'id_respuesta_est': respuesta_id,
                                'es_correcta': correcta, 'feedback': feedback,
                                'tiempo_respuesta': tiempo})

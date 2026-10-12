@@ -1,5 +1,16 @@
 from config import get_db_connection
 import unicodedata
+from services.banco_versionado import SQL_TEXTO_ACTIVO
+
+# Prioridad única para consultas del estudiante y del panel docente. El alias
+# e identifica estudiantes; el diagnóstico es inicial, no sustituye al progreso.
+SQL_NIVEL_ACTUAL = """COALESCE(
+    (SELECT LOWER(TRIM(pn.nivel_actual)) FROM progreso pn
+     WHERE pn.id_estudiante=e.id_estudiante ORDER BY pn.id_progreso DESC LIMIT 1),
+    (SELECT LOWER(TRIM(dn.nivel_asignado)) FROM diagnostico dn
+     WHERE dn.id_estudiante=e.id_estudiante
+     ORDER BY dn.fecha DESC,dn.id_diagnostico DESC LIMIT 1),
+    'literal')"""
 
 def obtener_nivel_actual(id_estudiante, cursor=None):
     propio = cursor is None
@@ -8,32 +19,15 @@ def obtener_nivel_actual(id_estudiante, cursor=None):
         if propio:
             conn, cursor = get_db_cursor()
 
-        cursor.execute("""
-            SELECT nivel_actual
-            FROM progreso
-            WHERE id_estudiante = %s
-            ORDER BY id_progreso DESC
-            LIMIT 1
-        """, (id_estudiante,))
+        cursor.execute(f"""SELECT nivel_actual FROM (
+            SELECT {SQL_NIVEL_ACTUAL} AS nivel_actual FROM estudiantes e
+            WHERE e.id_estudiante=%s
+        ) nivel_vigente""", (id_estudiante,))
 
         resultado = cursor.fetchone()
 
         if resultado:
             nivel = resultado['nivel_actual'] if isinstance(resultado, dict) else resultado[0]
-            return nivel.strip().lower()
-
-        cursor.execute("""
-            SELECT nivel_asignado
-            FROM diagnostico
-            WHERE id_estudiante = %s
-            ORDER BY fecha DESC
-            LIMIT 1
-        """, (id_estudiante,))
-
-        resultado = cursor.fetchone()
-
-        if resultado:
-            nivel = resultado['nivel_asignado'] if isinstance(resultado, dict) else resultado[0]
             return nivel.strip().lower()
 
         return 'literal'
@@ -152,17 +146,18 @@ def calcular_puntuacion_estudiante(id_estudiante, limite_respuestas=None, cursor
         
         # Consolidar el desempeño usando únicamente el intento más reciente
         # de cada pregunta. Así, los reintentos no inflan ni castigan el avance.
-        query = """
+        query = f"""
             SELECT re.id_respuesta_est, re.es_correcta, p.tipo, re.fecha
             FROM respuestas_estudiante re
             JOIN preguntas p ON re.id_pregunta = p.id_pregunta
+            JOIN textos t ON t.id_texto=p.id_texto
             JOIN (
                 SELECT id_pregunta, MAX(id_respuesta_est) AS ultima_respuesta
                 FROM respuestas_estudiante
                 WHERE id_estudiante = %s
                 GROUP BY id_pregunta
             ) ultimas ON ultimas.ultima_respuesta = re.id_respuesta_est
-            WHERE re.id_estudiante = %s
+            WHERE re.id_estudiante = %s AND re.es_correcta IS NOT NULL AND {SQL_TEXTO_ACTIVO}
             ORDER BY re.id_respuesta_est DESC
         """
         parametros = [id_estudiante, id_estudiante]
@@ -173,6 +168,7 @@ def calcular_puntuacion_estudiante(id_estudiante, limite_respuestas=None, cursor
         
         cursor.execute(query, tuple(parametros))
         respuestas = cursor.fetchall()
+        respuestas = [r for r in respuestas if r['es_correcta'] is not None]
         
         if not respuestas:
             return {
@@ -249,12 +245,13 @@ def detectar_patrones_error(id_estudiante, limite_respuestas=20):
         conn, cursor = get_db_cursor()
         
         # Obtener respuestas incorrectas recientes con tiempo de respuesta
-        query = """
+        query = f"""
             SELECT p.id_pregunta, p.enunciado, p.tipo, re.respuesta,
                    COALESCE(rc.respuesta, op.texto_opcion) AS respuesta_correcta,
                    re.tiempo_respuesta
             FROM respuestas_estudiante re
             JOIN preguntas p ON re.id_pregunta = p.id_pregunta
+            JOIN textos t ON t.id_texto=p.id_texto
             JOIN (
                 SELECT id_pregunta, MAX(id_respuesta_est) AS ultima_respuesta
                 FROM respuestas_estudiante
@@ -264,7 +261,7 @@ def detectar_patrones_error(id_estudiante, limite_respuestas=20):
             LEFT JOIN respuestas_correctas rc ON p.id_pregunta = rc.id_pregunta
             LEFT JOIN opciones_pregunta op
                 ON p.id_pregunta = op.id_pregunta AND op.es_correcta = TRUE
-            WHERE re.id_estudiante = %s AND re.es_correcta = FALSE
+            WHERE re.id_estudiante = %s AND re.es_correcta = FALSE AND {SQL_TEXTO_ACTIVO}
             ORDER BY re.id_respuesta_est DESC
             LIMIT %s
         """
@@ -341,6 +338,22 @@ def detectar_patrones_error(id_estudiante, limite_respuestas=20):
         return {'error': str(e)}
 
 
+def contar_pendientes(id_estudiante, cursor=None):
+    propio = cursor is None
+    conn = None
+    try:
+        if propio: conn,cursor = get_db_cursor()
+        cursor.execute(f'''SELECT COUNT(*) AS pendientes FROM respuestas_estudiante r
+            JOIN preguntas p ON p.id_pregunta=r.id_pregunta JOIN textos t ON t.id_texto=p.id_texto
+            WHERE r.id_estudiante=%s AND r.es_correcta IS NULL AND {SQL_TEXTO_ACTIVO}
+            AND r.id_respuesta_est=(SELECT MAX(r2.id_respuesta_est) FROM respuestas_estudiante r2
+                WHERE r2.id_estudiante=r.id_estudiante AND r2.id_pregunta=r.id_pregunta)''',(id_estudiante,))
+        row = cursor.fetchone()
+        return int(row['pendientes']) if row else 0
+    finally:
+        if propio and conn: cursor.close(); conn.close()
+
+
 def recomendar_nivel_siguiente(id_estudiante, cursor=None):
     """
     Recomienda el siguiente nivel de dificultad basado en desempeño
@@ -360,6 +373,10 @@ def recomendar_nivel_siguiente(id_estudiante, cursor=None):
         # Obtener nivel actual
         nivel_actual = obtener_nivel_actual(id_estudiante, cursor=cursor)
         
+        if contar_pendientes(id_estudiante,cursor=cursor):
+            return {'nivel_actual':nivel_actual,'nuevo_nivel':nivel_actual,
+                    'recomendacion':'mantener','confianza':'baja',
+                    'razon':'Hay respuestas pendientes de revisión docente. Mantén tu nivel hasta recibir la devolución.'}
         if puntuacion['total_respuestas'] == 0:
             nuevo_nivel = nivel_actual
             return {
@@ -469,7 +486,7 @@ def generar_feedback_personalizado(id_pregunta, es_correcta, respuesta_usuario, 
 
 def actualizar_nivel_estudiante(id_estudiante, nuevo_nivel):
     """
-    Actualiza el nivel actual del estudiante en la tabla progreso
+    Actualiza perfil y progreso juntos, sin cambiar el diagnóstico inicial.
 
     Args:
         id_estudiante: ID del estudiante
@@ -478,9 +495,17 @@ def actualizar_nivel_estudiante(id_estudiante, nuevo_nivel):
     Returns:
         bool: True si se actualizó, False si error
     """
+    if nuevo_nivel not in ('literal', 'inferencial', 'crítico'):
+        return False
+    conn = cursor = None
     try:
         conn, cursor = get_db_cursor()
-        
+        cursor.execute('SELECT id_estudiante FROM estudiantes WHERE id_estudiante=%s FOR UPDATE',
+                       (id_estudiante,))
+        if not cursor.fetchone():
+            conn.rollback()
+            return False
+
         # Verificar si existe registro en progreso
         cursor.execute("SELECT id_progreso FROM progreso WHERE id_estudiante = %s", (id_estudiante,))
         progreso = cursor.fetchone()
@@ -496,13 +521,20 @@ def actualizar_nivel_estudiante(id_estudiante, nuevo_nivel):
                             VALUES (%s, %s, %s)""",
                           (id_estudiante, nuevo_nivel, 0))
         
+        cursor.execute('UPDATE estudiantes SET nivel_actual=%s WHERE id_estudiante=%s',
+                       (nuevo_nivel, id_estudiante))
         conn.commit()
-        cursor.close()
-        conn.close()
         return True
     except Exception as e:
+        if conn:
+            conn.rollback()
         print(f"Error al actualizar nivel: {str(e)}")
         return False
+    finally:
+        if cursor:
+            cursor.close()
+        if conn:
+            conn.close()
 
 
 def sincronizar_progreso_estudiante(id_estudiante):
@@ -581,6 +613,14 @@ def crear_plan_reforzamiento(id_estudiante):
     """
     Crea un plan de reforzamiento según el desempeño por nivel lector.
     """
+    pendientes = contar_pendientes(id_estudiante)
+    if pendientes:
+        return {
+            'estado': 'pendiente_revision', 'pendientes': pendientes,
+            'nivel_reforzar': None, 'textos_recomendados': None,
+            'desbloquear_siguiente': False,
+            'mensaje': 'La recomendación de práctica estará disponible cuando el docente termine de revisar tus respuestas. Las pendientes no cuentan como errores.'
+        }
     evaluacion = calcular_puntuacion_estudiante(id_estudiante)
 
     if 'error' in evaluacion:

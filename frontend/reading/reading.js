@@ -2,6 +2,37 @@
 let enviandoRespuestas = false;
 let actividadLista = false;
 const inicioPorPregunta = new Map();
+const ordenOpcionesPorPregunta = new Map();
+
+function barajarOpciones(opciones, aleatorio = Math.random) {
+    const mezcla = [...opciones];
+    for (let i = mezcla.length - 1; i > 0; i--) {
+        const j = Math.floor(aleatorio() * (i + 1));
+        [mezcla[i], mezcla[j]] = [mezcla[j], mezcla[i]];
+    }
+    return mezcla;
+}
+
+function opcionesEnOrdenDeSesion(pregunta) {
+    const opciones = pregunta.opciones || [];
+    let usuario = {};
+    try { usuario = JSON.parse(localStorage.getItem('user') || '{}'); } catch { /* Mantener la actividad utilizable. */ }
+    const clave = `orden-opciones:${usuario?.id || 'sesion'}:${pregunta.id_pregunta}`;
+    let orden = ordenOpcionesPorPregunta.get(clave);
+    if (!orden) {
+        try { orden = JSON.parse(sessionStorage.getItem(clave) || 'null'); } catch { /* Almacenamiento no disponible. */ }
+    }
+    const ids = new Set(opciones.map(opcion => opcion.id_opcion));
+    const vigente = Array.isArray(orden) && orden.length === opciones.length &&
+        new Set(orden).size === ids.size && orden.every(id => ids.has(id));
+    if (!vigente) {
+        orden = barajarOpciones(opciones).map(opcion => opcion.id_opcion);
+        try { sessionStorage.setItem(clave, JSON.stringify(orden)); } catch { /* Caché en memoria como respaldo. */ }
+    }
+    ordenOpcionesPorPregunta.set(clave, orden);
+    const porId = new Map(opciones.map(opcion => [opcion.id_opcion, opcion]));
+    return orden.map(id => porId.get(id));
+}
 
 function iniciarTiempos(cards = document.querySelectorAll('.question-card')) {
     const ahora = performance.now();
@@ -21,7 +52,7 @@ function segundosTranscurridos(idPregunta, ahora = performance.now()) {
 function prepararReintento() {
     const cards = [...document.querySelectorAll('.question-card')];
     cards.forEach(card => {
-        if (card.classList.contains('answer-correct')) return;
+        if (card.classList.contains('answer-correct') || card.classList.contains('answer-pending')) return;
         card.querySelectorAll('input').forEach(input => {
             if (input.type === 'radio') input.checked = false;
             else input.value = '';
@@ -95,7 +126,7 @@ document.addEventListener('DOMContentLoaded', async function () {
             data.respuestas.forEach(result => {
                 const card = cards.find(card => Number(card.dataset.idPregunta) === result.id_pregunta);
                 card.classList.remove('answer-correct', 'answer-incorrect', 'question-unanswered');
-                card.classList.add(result.es_correcta ? 'answer-correct' : 'answer-incorrect');
+                marcarResultado(card,result.es_correcta);
                 card.querySelectorAll('input').forEach(input => { input.disabled = true; });
             });
             const feedbackRes = await fetch('/feedback-sesion', {
@@ -133,10 +164,21 @@ function showSummaryModal(answered, correct, feedbackData) {
 
     document.getElementById("summary-answered").textContent = feedbackData?.puntaje?.respondidas ?? answered;
     document.getElementById("summary-correct").textContent = feedbackData?.puntaje?.correctas ?? correct;
-    document.getElementById("summary-percentage").textContent = percentage + "%";
+    const pendientes=feedbackData?.puntaje?.pendientes || 0;
+    const enRevision=pendientes>0 || feedbackData?.plan_reforzamiento?.estado==='pendiente_revision';
+    const evaluadas=feedbackData?.puntaje?.evaluadas ?? Math.max(0,answered-pendientes);
+    const mensajePendiente='La recomendación de práctica estará disponible cuando el docente termine de revisar tus respuestas. Las pendientes no cuentan como errores.';
+    document.getElementById('summary-title').textContent=enRevision?'Respuestas enviadas':'Resumen de la sesión';
+    document.getElementById('summary-correct').textContent=evaluadas===0 && enRevision?'Por evaluar':(feedbackData?.puntaje?.correctas ?? correct);
+    document.getElementById('summary-percentage').textContent=evaluadas===0 && enRevision?'Pendiente':percentage+'%';
+    const estadoRevision=document.getElementById('summary-review-status');
+    estadoRevision.hidden=!enRevision;
+    estadoRevision.textContent=pendientes
+        ? `${pendientes} ${pendientes===1?'respuesta pendiente':'respuestas pendientes'} de revisión docente. ${evaluadas ? 'El porcentaje incluye solo respuestas evaluadas.' : 'El resultado aún no está disponible.'}`
+        : 'Hay respuestas de otras lecturas pendientes de revisión docente. Las recomendaciones se actualizarán al finalizar la revisión.';
 
     document.getElementById("feedback-level").textContent = feedbackData?.nivel_actual || "-";
-    document.getElementById("feedback-trend").textContent = feedbackData?.estado_nivel ? feedbackData.estado_nivel.toUpperCase() : "-";
+    document.getElementById("feedback-trend").textContent = enRevision?'En revisión':(feedbackData?.estado_nivel || '-');
     document.getElementById("feedback-next-level").textContent = feedbackData?.nuevo_nivel || "-";
     document.getElementById("feedback-tutor-message").textContent = feedbackData?.mensaje_tutor || "Sigue practicando para mejorar tu comprensión.";
 
@@ -160,14 +202,14 @@ function showSummaryModal(answered, correct, feedbackData) {
     } else {
         const empty = document.createElement("p");
         empty.className = "feedback-empty";
-        empty.textContent = "No se detectaron errores específicos en esta sesión.";
+        empty.textContent = enRevision ? 'Las respuestas pendientes todavía no tienen un resultado. No se consideran incorrectas.' : "No se detectaron errores específicos en esta sesión.";
         errorsContainer.appendChild(empty);
     }
 
     const practiceContainer = document.getElementById("feedback-practice");
     practiceContainer.innerHTML = "";
     const plan = feedbackData?.plan_reforzamiento;
-    const practicaUnica = plan?.mensaje || null;
+    const practicaUnica = enRevision ? mensajePendiente : plan?.mensaje || null;
     if (practicaUnica) {
         const paragraph = document.createElement("p");
         paragraph.className = "feedback-text";
@@ -181,7 +223,10 @@ function showSummaryModal(answered, correct, feedbackData) {
     }
 
     const recommendationBox = document.getElementById("recommendation-box");
-    if (percentage >= 80) {
+    if (enRevision) {
+        recommendationBox.style.display = 'none';
+        document.getElementById('recommendation-text').textContent='';
+    } else if (percentage >= 80) {
         recommendationBox.style.display = "block";
         document.getElementById("recommendation-text").textContent = feedbackData.mensaje_tutor;
     } else if (percentage < 50) {
@@ -202,6 +247,7 @@ function showSummaryModal(answered, correct, feedbackData) {
         document.getElementById('summary-modal').style.display = 'none';
         prepararReintento();
     };
+    document.getElementById('btn-retry-reading').style.display=document.querySelector('.answer-incorrect')?'block':'none';
     let apply = document.getElementById('apply-recommended-level');
     if (!apply) {
         apply = document.createElement('button');
@@ -210,7 +256,7 @@ function showSummaryModal(answered, correct, feedbackData) {
         document.querySelector('.modal-footer').appendChild(apply);
     }
     apply.textContent = 'Aplicar nivel recomendado';
-    apply.style.display = feedbackData.nuevo_nivel !== feedbackData.nivel_actual ? 'block' : 'none';
+    apply.style.display = !enRevision && feedbackData.nuevo_nivel !== feedbackData.nivel_actual ? 'block' : 'none';
     apply.onclick = async () => {
         apply.disabled = true;
         try {
@@ -244,12 +290,30 @@ async function loadPreviousAnswers(textId) {
         else card.querySelectorAll('input[type="radio"]').forEach(radio => {
             radio.checked = radio.dataset.textoOpcion === answer.respuesta;
         });
-        card.classList.add(answer.es_correcta ? 'answer-correct' : 'answer-incorrect');
+        marcarResultado(card,answer.es_correcta);
+        if (answer.devolucion) {
+            const devolucion=document.createElement('p'); devolucion.className='estado-revision';
+            devolucion.textContent=`Devolución del docente: ${answer.devolucion}`; card.appendChild(devolucion);
+        }
         card.querySelectorAll('input').forEach(input => { input.disabled = true; });
-        if (!answer.es_correcta) incorrectas++;
+        if (answer.es_correcta === false) incorrectas++;
     });
     if (data.todas_correctas) document.getElementById('submit-answers').style.display = 'none';
     else if (incorrectas) showRetryButton();
+    else if (data.estado_lectura?.pendientes > 0 && data.estado_lectura.respondidas === data.estado_lectura.total_preguntas)
+        document.getElementById('submit-answers').style.display = 'none';
+}
+
+function marcarResultado(card,correcta) {
+    card.classList.remove('answer-correct','answer-incorrect','answer-pending');
+    const previo=card.querySelector('.estado-revision');
+    if (previo) previo.remove();
+    if (correcta === null) {
+        card.classList.add('answer-pending');
+        const aviso=document.createElement('p'); aviso.className='estado-revision';
+        aviso.textContent='Pendiente de revisión docente. Actualiza la lectura para consultar el resultado.';
+        card.appendChild(aviso);
+    } else card.classList.add(correcta ? 'answer-correct':'answer-incorrect');
 }
 
 function showRetryButton() {
@@ -345,7 +409,7 @@ function displayQuestions(questions) {
             const optionsContainer = document.createElement("div");
             optionsContainer.className = "question-options";
 
-            (q.opciones || []).forEach(opcion => {
+            opcionesEnOrdenDeSesion(q).forEach(opcion => {
                 const optionLabel = document.createElement("label");
                 optionLabel.className = "option-card";
                 optionLabel.innerHTML = `

@@ -4,6 +4,8 @@ from flask import Flask, jsonify, request, g
 from flask_jwt_extended import JWTManager, create_access_token, jwt_required, get_jwt_identity, get_jwt
 from flask import send_from_directory
 from config import get_db_connection
+from services.correos import validar_correo_gmail
+from services.banco_versionado import SQL_TEXTO_ACTIVO
 from services.tutoring import (
     calcular_puntuacion_estudiante, 
     detectar_patrones_error, 
@@ -411,10 +413,11 @@ def obtener_textos():
         if nivel_solicitado not in niveles_permitidos:
             nivel_solicitado = nivel_actual
 
-        cursor.execute("""
+        cursor.execute(f"""
             SELECT id_texto, titulo, contenido, nivel
-            FROM textos
+            FROM textos t
             WHERE LOWER(TRIM(nivel)) = LOWER(TRIM(%s))
+            AND {SQL_TEXTO_ACTIVO}
             ORDER BY id_texto DESC
         """, (nivel_solicitado,))
 
@@ -459,6 +462,10 @@ def register():
         return jsonify({'error': 'El nombre y el correo admiten un máximo de 100 caracteres cada uno'}), 400
     if not 8 <= len(password.encode('utf-8')) <= 72:
         return jsonify({"error": "La contraseña debe tener entre 8 y 72 bytes UTF-8"}), 400
+    try:
+        email = validar_correo_gmail(email)
+    except ValueError as error:
+        return jsonify({'error': str(error)}), 400
 
     try:
         conn, cursor = get_db_cursor()
@@ -504,6 +511,7 @@ def login():
         return jsonify({"error": "Email y password son requeridos"}), 400
     if len(email) > 100 or len(password.encode('utf-8')) > 72:
         return jsonify({'error': 'El correo admite hasta 100 caracteres y la contraseña hasta 72 bytes UTF-8'}), 400
+    email = email.strip()
 
     try:
         conn, cursor = get_db_cursor()
@@ -749,7 +757,7 @@ def obtener_respuestas_estudiante(id_estudiante):
             "id_estudiante": r['id_estudiante'],
             "id_pregunta": r['id_pregunta'],
             "respuesta": r['respuesta'],
-            "es_correcta": bool(r['es_correcta']),
+            "es_correcta": None if r['es_correcta'] is None else bool(r['es_correcta']),
             "tiempo_respuesta": r['tiempo_respuesta'],
             "fecha": str(r['fecha']),
             "feedback": {
@@ -808,9 +816,11 @@ def obtener_respuestas_por_texto(id_texto):
 
         # Obtener las respuestas más recientes para cada pregunta de este texto
         query = """
-            SELECT re.id_respuesta_est, re.id_pregunta, re.respuesta, re.es_correcta, p.enunciado, re.fecha
+            SELECT re.id_respuesta_est, re.id_pregunta, re.respuesta, re.es_correcta, p.enunciado, re.fecha,
+                   rv.devolucion
             FROM respuestas_estudiante re
             JOIN preguntas p ON re.id_pregunta = p.id_pregunta
+            LEFT JOIN revisiones_criticas rv ON rv.id_respuesta_est=re.id_respuesta_est
             WHERE re.id_estudiante = %s AND p.id_texto = %s
             AND re.id_respuesta_est = (
                 SELECT MAX(id_respuesta_est)
@@ -838,7 +848,8 @@ def obtener_respuestas_por_texto(id_texto):
             if id_pregunta not in resultado:  # Primera (más reciente) para esta pregunta
                 resultado[id_pregunta] = {
                     "respuesta": r['respuesta'],
-                    "es_correcta": bool(r['es_correcta']),
+                    "devolucion": r.get('devolucion'),
+                    "es_correcta": None if r['es_correcta'] is None else bool(r['es_correcta']),
                     "enunciado": r['enunciado']
                 }
                 if not r['es_correcta']:
@@ -1042,12 +1053,14 @@ def feedback_sesion():
         respuestas = cursor.fetchall()
 
         preguntas_respondidas = len(respuestas)
+        pendientes = sum(r['es_correcta'] is None for r in respuestas)
+        evaluadas = preguntas_respondidas-pendientes
         respuestas_correctas = sum(1 for r in respuestas if r['es_correcta'])
-        porcentaje = round((respuestas_correctas / preguntas_respondidas * 100), 2) if preguntas_respondidas > 0 else 0
+        porcentaje = round((respuestas_correctas / evaluadas * 100), 2) if evaluadas else 0
 
         errores_detectados = []
         for r in respuestas:
-            if not r['es_correcta']:
+            if r['es_correcta'] is not None and not r['es_correcta']:
                 errores_detectados.append({
                     'pregunta_id': r['id_pregunta'],
                     'nivel': r['tipo'],
@@ -1078,6 +1091,9 @@ def feedback_sesion():
 
         plan_reforzamiento = crear_plan_reforzamiento(id_estudiante)
         comprobar_servicio(plan_reforzamiento)
+        if plan_reforzamiento.get('estado') == 'pendiente_revision':
+            recomendaciones_practica = [plan_reforzamiento['mensaje']]
+            patrones_error = {**patrones_error, 'recomendaciones': recomendaciones_practica}
 
         cursor.close()
         conn.close()
@@ -1085,6 +1101,8 @@ def feedback_sesion():
         return jsonify({
             'puntaje': {
                 'respondidas': preguntas_respondidas,
+                'pendientes': pendientes,
+                'evaluadas': evaluadas,
                 'correctas': respuestas_correctas,
                 'porcentaje': porcentaje
             },
@@ -1404,10 +1422,11 @@ def obtener_dashboard_estudiante():
         comprobar_servicio(evaluacion)
         nivel_actual = obtener_nivel_actual(id_estudiante)
 
-        cursor.execute("""
+        cursor.execute(f"""
             SELECT t.id_texto, t.titulo, t.nivel, COUNT(DISTINCT p.id_pregunta) AS total_preguntas
             FROM textos t
             LEFT JOIN preguntas p ON p.id_texto = t.id_texto
+            WHERE {SQL_TEXTO_ACTIVO}
             GROUP BY t.id_texto, t.titulo, t.nivel
             ORDER BY t.id_texto
         """)
@@ -1458,7 +1477,8 @@ def obtener_dashboard_estudiante():
                 1 for respuesta in respuestas_recientes.values() if respuesta['es_correcta']
             )
             realizadas = len(respuestas_recientes)
-            porcentaje = round((correctas_recientes / realizadas) * 100, 2) if realizadas else 0
+            evaluadas = sum(r['es_correcta'] is not None for r in respuestas_recientes.values())
+            porcentaje = round((correctas_recientes / evaluadas) * 100, 2) if evaluadas else 0
             completada = estados_compartidos.get(id_texto, estado_lectura(0, []))['completada']
 
             estado_textos[id_texto] = {
@@ -1579,6 +1599,19 @@ def seguimiento_individual(sid):
     finally:
         cursor.close()
         conn.close()
+
+
+@app.route('/api/docente/respuestas/<int:rid>/revision', methods=['POST'])
+@jwt_required()
+def revision_respuesta_critica(rid):
+    from services.revision_docente import revisar_respuesta
+    usuario = obtener_usuario_actual()
+    if usuario['rol'] not in (ROL_DOCENTE,ROL_ADMIN):
+        raise ActivityError('Solo docentes y administradores pueden revisar respuestas',403)
+    try:
+        return jsonify(revisar_respuesta(usuario,rid,request.get_json(),get_db_cursor))
+    except ValueError as exc:
+        return jsonify({'error':str(exc)}),400
 
 
 if __name__ == '__main__':

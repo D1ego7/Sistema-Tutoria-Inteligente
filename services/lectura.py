@@ -1,6 +1,7 @@
 """Reglas compartidas de lectura: último intento, calificación y entradas válidas."""
 import math
 import re
+from services.banco_versionado import SQL_TEXTO_ACTIVO
 from services.tutoring import normalizar_texto
 
 
@@ -60,11 +61,13 @@ def estado_lectura(total_preguntas, respuestas):
             ultimas[row['id_pregunta']] = row
     respondidas = len(ultimas)
     correctas = sum(bool(row['es_correcta']) for row in ultimas.values())
+    evaluadas = sum(row['es_correcta'] is not None for row in ultimas.values())
     return {
         'total_preguntas': int(total_preguntas),
         'respondidas': respondidas,
         'correctas': correctas,
-        'porcentaje': round(correctas * 100 / respondidas, 2) if respondidas else 0,
+        'pendientes': respondidas-evaluadas,
+        'porcentaje': round(correctas * 100 / evaluadas, 2) if evaluadas else 0,
         'completada': total_preguntas > 0 and respondidas == total_preguntas
                       and correctas == total_preguntas,
     }
@@ -72,11 +75,13 @@ def estado_lectura(total_preguntas, respuestas):
 
 def obtener_estado_lecturas(cursor, id_estudiante):
     """Una consulta para catálogo e Inicio, con el mismo criterio de finalización."""
-    cursor.execute("""
+    cursor.execute(f"""
         SELECT p.id_texto, COUNT(p.id_pregunta) AS total_preguntas,
                COUNT(re.id_respuesta_est) AS respondidas,
+               COUNT(re.es_correcta) AS evaluadas,
                COALESCE(SUM(re.es_correcta = TRUE), 0) AS correctas
         FROM preguntas p
+        JOIN textos t ON t.id_texto=p.id_texto
         LEFT JOIN (
             SELECT r.id_respuesta_est, r.id_pregunta, r.es_correcta
             FROM respuestas_estudiante r
@@ -87,6 +92,7 @@ def obtener_estado_lecturas(cursor, id_estudiante):
             ) u ON u.ultima_respuesta = r.id_respuesta_est
             WHERE r.id_estudiante = %s
         ) re ON re.id_pregunta = p.id_pregunta
+        WHERE {SQL_TEXTO_ACTIVO}
         GROUP BY p.id_texto
     """, (id_estudiante, id_estudiante))
     result = {}
@@ -95,7 +101,8 @@ def obtener_estado_lecturas(cursor, id_estudiante):
                                     ['total_preguntas', 'respondidas', 'correctas'])
         result[row['id_texto']] = {
             'total_preguntas': total, 'respondidas': answered, 'correctas': correct,
-            'porcentaje': round(correct * 100 / answered, 2) if answered else 0,
+            'pendientes': answered-int(row.get('evaluadas',answered)),
+            'porcentaje': round(correct * 100 / int(row.get('evaluadas',answered)), 2) if row.get('evaluadas',answered) else 0,
             'completada': total > 0 and answered == total and correct == total,
         }
     return result

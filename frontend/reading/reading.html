@@ -2,6 +2,7 @@
 <html lang="es">
 <head>
 <meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Tutor Inteligente - Lectura</title>
 <link rel="stylesheet" href="/styles.css">
 <link rel="stylesheet" href="/header.css">
@@ -39,7 +40,7 @@
 <div id="summary-modal" class="modal" style="display: none;">
     <div class="modal-content">
         <div class="modal-header">
-            <h2>🎉 ¡Sesión Completada!</h2>
+            <h2 id="summary-title">Resumen de la sesión</h2>
         </div>
         <div class="modal-body">
             <div class="session-summary">
@@ -56,6 +57,7 @@
                     <p class="stat-value" id="summary-percentage">0%</p>
                 </div>
             </div>
+            <p id="summary-review-status" class="summary-review-status" role="status" hidden></p>
             <div class="feedback-overview">
                 <div class="feedback-card">
                     <p class="feedback-label">Nivel actual</p>

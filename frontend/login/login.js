@@ -16,7 +16,7 @@ function togglePassword() {
 }
 
 async function login() {
-    const email = document.getElementById("email").value;
+    const email = document.getElementById("email").value.trim();
     const password = document.getElementById("password").value;
     let error = document.getElementById("error");
 
