@@ -17,7 +17,10 @@ REGISTROS = [
      'concentración vocabulario y creatividad', [
          'concentración creatividad y vocabulario', 'vocabulario concentración y creatividad',
          'vocabulario creatividad y concentración', 'creatividad concentración y vocabulario',
-         'creatividad vocabulario y concentración', 'la concentración el vocabulario y la creatividad']),
+         'creatividad vocabulario y concentración', 'la concentración el vocabulario y la creatividad',
+         'concentración vocabulario creatividad', 'concentración creatividad vocabulario',
+         'vocabulario concentración creatividad', 'vocabulario creatividad concentración',
+         'creatividad concentración vocabulario', 'creatividad vocabulario concentración']),
     ('¿Por qué lo respetaban todos los animales?', 'literal',
      'porque era inteligente y encontraba soluciones', [
          'porque siempre encontraba soluciones creativas a los problemas',

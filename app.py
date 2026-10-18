@@ -22,6 +22,11 @@ from services.tutoring import (
 )
 import bcrypt
 import os
+import json
+from services.diagnostico import (
+    DIAGNOSTICO_INICIAL, contenido_publico, evaluar_respuestas_diagnostico,
+    detalle_evaluacion,
+)
 from werkzeug.exceptions import HTTPException
 from services.lectura import (
     entero_positivo, validar_tiempo, validar_respuesta,
@@ -115,50 +120,6 @@ ROL_DOCENTE = 2
 ROL_ADMIN = 3
 NIVELES_LECTORES = ['literal', 'inferencial', 'crítico']
 
-DIAGNOSTICO_INICIAL = {
-    "texto": (
-        "Un pequeño ratón despertó accidentalmente a un enorme león que dormía bajo un árbol. "
-        "El león, furioso, atrapó al ratón entre sus garras. El ratón le rogó que lo dejara libre "
-        "y prometió ayudarlo algún día. El león se rió, pero decidió soltarlo. Días después, el león "
-        "cayó atrapado en una red. El ratón escuchó sus rugidos, corrió hacia él y mordió la red hasta "
-        "liberarlo. Desde entonces, el león comprendió que hasta los más pequeños pueden ser de gran ayuda."
-    ),
-    "preguntas": [
-        {
-            "id": 1,
-            "pregunta": "¿Qué animal despertó al león?",
-            "respuestas_aceptadas": ["el ratón", "ratón"]
-        },
-        {
-            "id": 2,
-            "pregunta": "¿Dónde dormía el león?",
-            "respuestas_aceptadas": ["bajo un árbol", "debajo de un árbol", "dormía bajo un árbol", "el león dormía debajo de un árbol"]
-        },
-        {
-            "id": 3,
-            "pregunta": "¿Qué le prometió el ratón al león?",
-            "respuestas_aceptadas": [
-                "porque el ratón le prometió ayudarlo",
-                "porque le prometió ayudarlo", "ayudarlo", "ayudarlo algún día",
-                "le prometió ayudarlo", "el ratón prometió ayudar al león",
-                "prometió ayudarlo algún día"
-            ]
-        },
-        {
-            "id": 4,
-            "pregunta": "¿Qué enseñanza deja la historia?",
-            "respuestas_aceptadas": [
-                "todos pueden ayudar sin importar su tamaño",
-                "hasta los más pequeños pueden ayudar",
-                "no importa el tamaño todos podemos ayudar",
-                "todos podemos ayudar sin importar nuestro tamaño",
-                "hasta los pequeños pueden ayudar a los grandes"
-            ]
-        }
-    ]
-}
-
-
 def obtener_usuario_actual():
     """Devuelve una representación consistente del usuario autenticado."""
     id_usuario = entero_positivo(get_jwt_identity(), 'Identidad de sesión')
@@ -186,41 +147,6 @@ def puede_acceder_estudiante(cursor, usuario, id_estudiante):
     estudiante = obtener_estudiante_de_usuario(cursor, usuario["id_usuario"])
     return bool(estudiante and estudiante["id_estudiante"] == id_estudiante)
 
-
-def respuesta_diagnostico_es_correcta(respuesta, respuestas_aceptadas):
-    return evaluar_respuesta_abierta(respuesta, respuestas_aceptadas)
-
-
-def evaluar_respuestas_diagnostico(respuestas):
-    """Valida y califica el diagnóstico exclusivamente en el servidor."""
-    if not isinstance(respuestas, list):
-        raise ValueError("respuestas debe ser una lista")
-
-    respuestas_por_id = {}
-    for item in respuestas:
-        if not isinstance(item, dict) or "id" not in item or "respuesta" not in item:
-            raise ValueError("Cada respuesta debe incluir id y respuesta")
-        try:
-            pregunta_id = entero_positivo(item["id"], "ID de pregunta")
-        except (TypeError, ValueError) as exc:
-            raise ValueError("ID de pregunta inválido") from exc
-        if pregunta_id in respuestas_por_id:
-            raise ValueError("No se permiten preguntas duplicadas")
-        respuesta = validar_respuesta(item["respuesta"])
-        respuestas_por_id[pregunta_id] = respuesta
-
-    preguntas = DIAGNOSTICO_INICIAL["preguntas"]
-    ids_esperados = {pregunta["id"] for pregunta in preguntas}
-    if set(respuestas_por_id) != ids_esperados:
-        raise ValueError("Debes responder exactamente las preguntas del diagnóstico")
-
-    return [
-        respuesta_diagnostico_es_correcta(
-            respuestas_por_id[pregunta["id"]],
-            pregunta["respuestas_aceptadas"]
-        )
-        for pregunta in preguntas
-    ]
 
 def estudiante_tiene_diagnostico(id_usuario):
     conn, cursor = get_db_cursor()
@@ -1131,13 +1057,7 @@ def obtener_diagnostico_preguntas():
             return jsonify({"error": "El diagnóstico solo está disponible para estudiantes"}), 403
         if estudiante_tiene_diagnostico(usuario['id_usuario']):
             return jsonify({"error": "El diagnóstico inicial ya fue completado"}), 409
-        return jsonify({
-            "texto": DIAGNOSTICO_INICIAL["texto"],
-            "preguntas": [
-                {"id": pregunta["id"], "pregunta": pregunta["pregunta"]}
-                for pregunta in DIAGNOSTICO_INICIAL["preguntas"]
-            ]
-        }), 200
+        return jsonify(contenido_publico()), 200
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
@@ -1147,7 +1067,7 @@ def obtener_diagnostico_preguntas():
 def realizar_diagnostico():
     """
     Realiza diagnóstico inicial del estudiante
-    Body: {"respuestas": [{"id": 1, "respuesta": "..."}, ...]}
+    Body: {"version": "primaria5_v2", "respuestas": [{"id": 101, "id_opcion": 2}, ...]}
     Retorna el nivel inicial asignado
     """
     conn = None
@@ -1158,6 +1078,10 @@ def realizar_diagnostico():
             return jsonify({"error": "El diagnóstico solo está disponible para estudiantes"}), 403
         id_usuario = usuario['id_usuario']
         data = request.get_json(silent=True) or {}
+
+        if data.get('version') != DIAGNOSTICO_INICIAL['version']:
+            return jsonify({'error': 'El diagnóstico cambió. Actualiza la página antes de responder.',
+                            'actualizar_diagnostico': True}), 409
 
         try:
             respuestas_calificadas = evaluar_respuestas_diagnostico(data.get('respuestas'))
@@ -1187,6 +1111,12 @@ def realizar_diagnostico():
         
         # Calcular nivel
         resultado_diagnostico = calcular_nivel_lector_diagnostico(respuestas_calificadas)
+        respuestas_detalle, por_nivel = detalle_evaluacion(data['respuestas'], respuestas_calificadas)
+        resultado_diagnostico.update({
+            'version': DIAGNOSTICO_INICIAL['version'], 'por_nivel': por_nivel,
+            'total_preguntas': len(respuestas_calificadas),
+            'respuestas_correctas': sum(respuestas_calificadas),
+        })
         nivel_asignado = resultado_diagnostico['nivel']
         
         # Guardar en tabla diagnostico
@@ -1194,6 +1124,13 @@ def realizar_diagnostico():
                          (id_estudiante, puntaje, nivel_asignado, fecha) 
                          VALUES (%s, %s, %s, NOW())""",
                       (id_estudiante, resultado_diagnostico['porcentaje'], nivel_asignado))
+        id_diagnostico = cursor.lastrowid
+        cursor.execute('''INSERT INTO diagnostico_detalle
+                          (id_diagnostico,version,instrumento_json,respuestas_json)
+                          VALUES (%s,%s,%s,%s)''',
+                       (id_diagnostico, DIAGNOSTICO_INICIAL['version'],
+                        json.dumps(DIAGNOSTICO_INICIAL, ensure_ascii=False),
+                        json.dumps(respuestas_detalle, ensure_ascii=False)))
         cursor.execute(
             "UPDATE estudiantes SET nivel_actual = %s WHERE id_estudiante = %s",
             (nivel_asignado, id_estudiante)
@@ -1258,6 +1195,8 @@ def diagnostico_estado():
         cursor.close()
         conn.close()
 
+        if diagnostico and diagnostico['puntaje'] is not None:
+            diagnostico['puntaje'] = float(diagnostico['puntaje'])
         return jsonify({
             "tiene_diagnostico": diagnostico is not None,
             "diagnostico": diagnostico

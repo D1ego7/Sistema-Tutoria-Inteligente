@@ -5,16 +5,20 @@ from services.lectura import entero_positivo, obtener_estado_lecturas
 from services.tutoring import calcular_puntuacion_estudiante, recomendar_nivel_siguiente, SQL_NIVEL_ACTUAL
 
 
-def validar_acceso_docente(cursor, usuario):
+def validar_acceso_docente(cursor, usuario, bloquear=False):
     rol = usuario['rol']
     if rol not in (2, 3):
         raise ActivityError('Solo docentes y administradores pueden consultar el seguimiento', 403)
-    cursor.execute('SELECT id_rol FROM usuarios WHERE id_usuario = %s', (usuario['id_usuario'],))
+    # En operaciones de escritura la autorización también debe ser una lectura
+    # actual: un snapshot anterior al bloqueo del estudiante ocultaría revisiones
+    # concurrentes. Las consultas del panel conservan su comportamiento de lectura.
+    bloqueo = ' LOCK IN SHARE MODE' if bloquear else ''
+    cursor.execute('SELECT id_rol FROM usuarios WHERE id_usuario = %s' + bloqueo, (usuario['id_usuario'],))
     cuenta = cursor.fetchone()
     if not cuenta or cuenta['id_rol'] != rol:
         raise ActivityError('La cuenta no tiene permisos de seguimiento', 403)
     if rol == 2:
-        cursor.execute('SELECT id_docente FROM docentes WHERE id_usuario = %s', (usuario['id_usuario'],))
+        cursor.execute('SELECT id_docente FROM docentes WHERE id_usuario = %s' + bloqueo, (usuario['id_usuario'],))
         if not cursor.fetchone():
             raise ActivityError('La cuenta no tiene un perfil docente', 403)
 
@@ -60,6 +64,8 @@ def listar_estudiantes(cursor, args):
         ''' + condicion + ' ORDER BY u.nombre,e.id_estudiante LIMIT %s OFFSET %s', params + (limite, offset))
     filas = cursor.fetchall()
     for fila in filas:
+        if fila['puntaje_diagnostico'] is not None:
+            fila['puntaje_diagnostico'] = float(fila['puntaje_diagnostico'])
         fila['porcentaje_acierto'] = round(float(fila['correctas']) / fila['respondidas'] * 100, 2) if fila['respondidas'] else None
         fila['correctas'] = int(fila['correctas'])
         fila['ultima_actividad'] = str(fila['ultima_actividad']) if fila['ultima_actividad'] else None
@@ -77,6 +83,8 @@ def detalle_estudiante(cursor, sid, args):
     cursor.execute('''SELECT puntaje,nivel_asignado,fecha FROM diagnostico
                       WHERE id_estudiante=%s ORDER BY id_diagnostico DESC LIMIT 1''', (sid,))
     diagnostico = cursor.fetchone()
+    if diagnostico and diagnostico['puntaje'] is not None:
+        diagnostico['puntaje'] = float(diagnostico['puntaje'])
     if diagnostico:
         diagnostico['fecha'] = str(diagnostico['fecha']) if diagnostico['fecha'] else None
     evaluacion = calcular_puntuacion_estudiante(sid, cursor=cursor)
