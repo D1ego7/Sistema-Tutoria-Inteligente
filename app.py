@@ -79,7 +79,7 @@ def cerrar_conexiones_request(_error=None):
 
 @app.before_request
 def validar_body_json():
-    if request.method == 'POST':
+    if request.method in ('POST', 'PUT', 'PATCH'):
         data = request.get_json(silent=True)
         if not isinstance(data, dict):
             return jsonify({'error': 'Se requiere un objeto JSON válido'}), 400
@@ -170,6 +170,11 @@ def index():
 @app.route("/styles.css")
 def styles():
     return send_from_directory("frontend/common", "styles_general.css")
+
+
+@app.route('/accesibilidad.css')
+def estilos_accesibilidad():
+    return send_from_directory('frontend/common', 'accesibilidad.css')
 
 @app.route("/login.css")
 def login_css():
@@ -1545,12 +1550,64 @@ def seguimiento_individual(sid):
 def revision_respuesta_critica(rid):
     from services.revision_docente import revisar_respuesta
     usuario = obtener_usuario_actual()
-    if usuario['rol'] not in (ROL_DOCENTE,ROL_ADMIN):
-        raise ActivityError('Solo docentes y administradores pueden revisar respuestas',403)
+    if usuario['rol'] != ROL_DOCENTE:
+        raise ActivityError('Solo los docentes pueden guardar revisiones. El administrador tiene acceso de solo lectura.',403)
     try:
         return jsonify(revisar_respuesta(usuario,rid,request.get_json(),get_db_cursor))
     except ValueError as exc:
         return jsonify({'error':str(exc)}),400
+
+
+@app.route('/administrador.html')
+def pagina_administrador():
+    return send_from_directory('frontend/administrador', 'administrador.html')
+
+
+@app.route('/administrador.css')
+def estilos_administrador():
+    return send_from_directory('frontend/administrador', 'administrador.css')
+
+
+@app.route('/administrador.js')
+def codigo_administrador():
+    return send_from_directory('frontend/administrador', 'administrador.js')
+
+
+@app.route('/api/administrador/resumen')
+@jwt_required()
+def resumen_administrador():
+    from services import administracion
+    return jsonify(administracion.ejecutar(obtener_usuario_actual(), get_db_cursor, administracion.resumen))
+
+
+@app.route('/api/administrador/usuarios', methods=['GET', 'POST'])
+@jwt_required()
+def cuentas_administrador():
+    from services import administracion
+    try:
+        if request.method == 'GET':
+            operacion = lambda c: administracion.listar_cuentas(c, request.args)
+        else:
+            operacion = lambda c: administracion.guardar_cuenta(c, request.get_json())
+        resultado = administracion.ejecutar(obtener_usuario_actual(), get_db_cursor, operacion,
+                                           escritura=request.method == 'POST')
+        return jsonify(resultado), 201 if request.method == 'POST' else 200
+    except ValueError as exc:
+        return jsonify({'error': str(exc)}), 400
+
+
+@app.route('/api/administrador/usuarios/<int:uid>', methods=['PUT', 'DELETE'])
+@jwt_required()
+def modificar_cuenta_administrador(uid):
+    from services import administracion
+    try:
+        uid = entero_positivo(uid, 'Usuario')
+        data = request.get_json(silent=True)
+        operacion = (lambda c: administracion.guardar_cuenta(c, data, uid)) if request.method == 'PUT' else (
+            lambda c: administracion.eliminar_cuenta(c, uid, data))
+        return jsonify(administracion.ejecutar(obtener_usuario_actual(), get_db_cursor, operacion, escritura=True))
+    except ValueError as exc:
+        return jsonify({'error': str(exc)}), 400
 
 
 if __name__ == '__main__':

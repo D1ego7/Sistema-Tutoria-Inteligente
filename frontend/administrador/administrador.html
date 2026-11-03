@@ -1,0 +1,132 @@
+<!DOCTYPE html>
+<html lang="es">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Tutor Inteligente - Administración</title>
+    <link rel="stylesheet" href="/styles.css">
+    <link rel="stylesheet" href="/header.css">
+    <link rel="stylesheet" href="/dashboard.css">
+    <link rel="stylesheet" href="/docente.css">
+    <link rel="stylesheet" href="/administrador.css">
+    <link rel="stylesheet" href="/accesibilidad.css">
+</head>
+
+<body>
+    <a class="saltar-contenido" href="#contenido-principal">Saltar al contenido principal</a>
+    <div id="app-header"></div>
+    <main class="student-dashboard" id="panel-administrador" hidden>
+        <div id="contenido-principal" tabindex="-1"></div>
+        <section class="welcome-section">
+            <div>
+                <p class="eyebrow">Espacio del administrador</p>
+                <h2>Administración del sistema</h2>
+                <p class="welcome-copy">Organiza las cuentas y acompaña el trabajo de tu comunidad educativa.</p>
+            </div>
+            <a class="boton-secundario enlace-seguimiento" href="/docente.html">Ver seguimiento académico →</a>
+        </section>
+        <div class="summary-grid" aria-label="Resumen del sistema">
+            <article class="summary-card">
+                <div class="summary-icon blue" aria-hidden="true">♙</div>
+                <div>
+                    <p>Estudiantes</p><strong id="total-estudiantes">—</strong>
+                </div>
+            </article>
+            <article class="summary-card">
+                <div class="summary-icon violet" aria-hidden="true">▥</div>
+                <div>
+                    <p>Docentes</p><strong id="total-docentes">—</strong>
+                </div>
+            </article>
+            <article class="summary-card">
+                <div class="summary-icon green" aria-hidden="true">▣</div>
+                <div>
+                    <p>Lecturas disponibles</p><strong id="total-lecturas">—</strong>
+                </div>
+            </article>
+            <article class="summary-card">
+                <div class="summary-icon orange" aria-hidden="true">◷</div>
+                <div>
+                    <p>Respuestas por revisar</p><strong id="total-pendientes">—</strong>
+                </div>
+            </article>
+        </div>
+        <p id="estado-administracion" role="status" aria-live="polite"></p>
+        <section class="panel" aria-labelledby="titulo-cuentas">
+            <div class="cabecera-cuentas">
+                <div class="panel-heading">
+                    <div class="panel-icon blue" aria-hidden="true">▥</div>
+                    <div>
+                        <h3 id="titulo-cuentas">Gestión de cuentas</h3>
+                        <p>Crea y actualiza los accesos de estudiantes y docentes.</p>
+                    </div>
+                </div>
+                <button id="nueva-cuenta" class="boton-docente" type="button">+ Nuevo estudiante</button>
+            </div>
+            <form id="filtros-cuentas" class="filtros-docente">
+                <label>Tipo de cuenta<select id="rol-cuentas">
+                        <option value="1">Estudiantes</option>
+                        <option value="2">Docentes</option>
+                    </select></label>
+                <label class="busqueda-cuentas">Nombre o correo<input id="buscar-cuentas" type="search" maxlength="100"
+                        placeholder="Buscar una cuenta" autocomplete="off"></label>
+                <button class="boton-secundario" type="submit">Buscar</button>
+            </form>
+            <div class="tabla-contenedor" tabindex="0" role="region"
+                aria-label="Cuentas registradas; desplazamiento horizontal disponible">
+                <table>
+                    <caption class="solo-lectores">Cuentas registradas</caption>
+                    <thead>
+                        <tr>
+                            <th scope="col">Nombre</th>
+                            <th scope="col">Correo electrónico</th>
+                            <th scope="col">Actividad</th>
+                            <th scope="col">Acciones</th>
+                        </tr>
+                    </thead>
+                    <tbody id="lista-cuentas"></tbody>
+                </table>
+            </div>
+            <div class="paginacion"><button id="anterior-cuentas" class="boton-secundario"
+                    type="button">Anterior</button><span id="pagina-cuentas"></span><button id="siguiente-cuentas"
+                    class="boton-secundario" type="button">Siguiente</button></div>
+        </section>
+    </main>
+    <dialog id="dialogo-cuenta" aria-labelledby="titulo-formulario">
+        <form id="formulario-cuenta" class="formulario-administracion">
+            <p class="eyebrow" id="tipo-formulario">Estudiante</p>
+            <h2 id="titulo-formulario">Nueva cuenta</h2>
+            <p class="ayuda-formulario">Los datos de acceso permiten ingresar al sistema.</p>
+            <label>Nombre completo<input id="nombre-cuenta" name="nombre" required minlength="2" maxlength="100"
+                    autocomplete="name"></label>
+            <label>Correo electrónico<input id="correo-cuenta" name="email" type="email" required maxlength="100"
+                    placeholder="nombre.apellido@gmail.com" autocomplete="off"
+                    pattern="[^\s@]+@[gG][mM][aA][iI][lL]\.[cC][oO][mM]"></label>
+            <label><span id="etiqueta-clave">Contraseña</span><input id="clave-cuenta" name="password" type="password"
+                    minlength="8" maxlength="72" autocomplete="new-password" aria-describedby="ayuda-clave"></label>
+            <p id="ayuda-clave" class="ayuda-formulario"></p>
+            <p id="error-cuenta" class="error-administracion" role="alert"></p>
+            <div class="acciones-formulario"><button id="cancelar-cuenta" type="button"
+                    class="boton-secundario">Cancelar</button><button id="guardar-cuenta" type="submit"
+                    class="boton-docente">Guardar cuenta</button></div>
+        </form>
+    </dialog>
+    <dialog id="dialogo-eliminar" aria-labelledby="titulo-eliminar">
+        <div class="formulario-administracion">
+            <p class="eyebrow">Gestión de cuentas</p>
+            <h2 id="titulo-eliminar">¿Eliminar esta cuenta?</h2>
+            <strong id="nombre-eliminar"></strong>
+            <p id="aviso-eliminar"></p>
+            <p class="advertencia-eliminar">Esta acción es permanente.</p>
+            <p id="error-eliminar" class="error-administracion" role="alert"></p>
+            <div class="acciones-formulario"><button id="cancelar-eliminar" type="button"
+                    class="boton-secundario">Cancelar</button><button id="confirmar-eliminar" type="button"
+                    class="boton-peligro">Eliminar cuenta</button></div>
+        </div>
+    </dialog>
+    <script src="/header.js"></script>
+    <script src="/administrador.js"></script>
+</body>
+
+</html>

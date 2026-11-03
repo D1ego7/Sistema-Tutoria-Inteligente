@@ -3,19 +3,23 @@
 
 <head>
     <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Tutor Inteligente - Login</title>
     <link rel="stylesheet" href="/styles.css">
     <link rel="stylesheet" href="/login.css">
+    <link rel="stylesheet" href="/accesibilidad.css">
 </head>
 
 <body>
+    <a class="saltar-contenido" href="#contenido-principal">Saltar al contenido principal</a>
 
-    <div class="login-container">
+    <div class="login-container" id="contenido-principal" role="main" tabindex="-1">
         <div class="login-wrapper">
             <div class="login-header">
                 <div class="icon">
-                    <svg xmlns="http://www.w3.org/2000/svg" width="60" height="60" viewBox="0 0 24 24" fill="none"
-                        stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <svg aria-hidden="true" focusable="false" xmlns="http://www.w3.org/2000/svg" width="60" height="60"
+                        viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
+                        stroke-linejoin="round">
                         <path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z" />
                         <path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z" />
                         <line x1="6" y1="8" x2="6" y2="8" />
@@ -35,7 +39,8 @@
                         <label for="email">Correo electrónico</label>
                         <div class="input-wrapper">
                             <span class="icon input-icon">✉️</span>
-                            <input type="email" id="email" placeholder="estudiante@gmail.com" maxlength="100" required>
+                            <input type="email" id="email" placeholder="estudiante@gmail.com" maxlength="100"
+                                autocomplete="username" required>
                         </div>
                     </div>
 
@@ -43,20 +48,23 @@
                         <label for="password">Contraseña</label>
                         <div class="input-wrapper">
                             <span class="icon lock-icon">🔒</span>
-                            <input type="password" id="password" placeholder="Contraseña" maxlength="72" required>
-                            <span class="icon eye-icon" onclick="togglePassword()">
-                                <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24"
-                                    fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
-                                    stroke-linejoin="round">
+                            <input type="password" id="password" placeholder="Contraseña" maxlength="72"
+                                autocomplete="current-password" required>
+                            <button type="button" class="icon eye-icon" onclick="togglePassword()"
+                                aria-label="Mostrar contraseña" aria-controls="password" aria-pressed="false">
+                                <svg aria-hidden="true" focusable="false" xmlns="http://www.w3.org/2000/svg" width="20"
+                                    height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                                    stroke-linecap="round" stroke-linejoin="round">
                                     <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" />
                                     <circle cx="12" cy="12" r="3" />
                                 </svg>
-                            </span>
+                            </button>
                         </div>
                     </div>
 
-                    <button type="submit">Iniciar sesión</button>
+                    <button id="iniciar-sesion" type="submit">Iniciar sesión</button>
                 </form>
+                <p id="error" class="error" role="alert" aria-live="assertive"></p>
             </div>
 
             <p class="demo-note">EducaColegio · ingresa tu correo y contraseña</p>

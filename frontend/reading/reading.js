@@ -57,16 +57,27 @@ function prepararReintento() {
             if (input.type === 'radio') input.checked = false;
             else input.value = '';
             input.disabled = false;
+            input.setAttribute('aria-invalid', 'false');
         });
         card.classList.remove('answer-incorrect', 'question-unanswered');
     });
     iniciarTiempos(cards);
+    document.getElementById('mensaje-lectura').textContent = '';
     document.getElementById('submit-answers').style.display = 'block';
     const container = document.getElementById('button-container');
     if (container) container.style.display = 'none';
 }
 
 document.addEventListener('DOMContentLoaded', async function () {
+    const resumen = document.getElementById('summary-modal');
+    document.getElementById('cerrar-resumen').addEventListener('click', () => cerrarResumen('cerrar'));
+    resumen.addEventListener('cancel', () => { resumen.style.display = 'none'; });
+    resumen.addEventListener('close', () => {
+        resumen.style.display = 'none';
+        const destino = resumen.returnValue === 'reintentar'
+            ? document.querySelector('.question-card input:not(:disabled)') : document.getElementById('back-btn');
+        if (destino && typeof destino.focus === 'function') destino.focus();
+    });
     const token = localStorage.getItem('token');
     const user = JSON.parse(localStorage.getItem('user') || '{}');
     const textId = new URLSearchParams(window.location.search).get('id');
@@ -90,15 +101,45 @@ document.addEventListener('DOMContentLoaded', async function () {
         window.location.href = '/';
     });
     document.getElementById('back-btn').addEventListener('click', () => { window.location.href = '/menu.html'; });
+    let resumenPendiente = null;
+    async function recuperarResumen() {
+        const headers = { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` };
+        const res = await fetch('/feedback-sesion', {
+            method: 'POST', headers, body: JSON.stringify({ id_texto: Number(textId) })
+        });
+        if (res.status === 401) {
+            localStorage.removeItem('token'); localStorage.removeItem('user');
+            window.location.href = '/';
+            throw new Error('La sesión terminó. Vuelve a ingresar.');
+        }
+        const feedback = await res.json();
+        if (!res.ok) throw new Error(feedback.error || 'No se pudo cargar el resumen');
+        showSummaryModal(resumenPendiente.respondidas, resumenPendiente.correctas, feedback);
+        resumenPendiente = null;
+        button.textContent = 'Enviar respuestas';
+        button.style.display = 'none';
+        document.getElementById('mensaje-lectura').textContent = '';
+    }
     button.addEventListener('click', async () => {
         if (!actividadLista || enviandoRespuestas) return;
+        if (resumenPendiente) {
+            enviandoRespuestas = true; button.disabled = true;
+            try { await recuperarResumen(); }
+            catch { showToast('Tus respuestas están guardadas. No se pudo cargar el resumen. Vuelve a intentarlo.', false); }
+            finally { enviandoRespuestas = false; button.disabled = false; }
+            return;
+        }
         const cards = [...document.querySelectorAll('.question-card')]
             .filter(card => card.querySelector('input:not(:disabled)'));
         if (!cards.length) return;
         const answers = cards.map(obtenerRespuestaDePregunta);
+        cards.forEach((card, i) => {
+            card.classList.toggle('question-unanswered', !answers[i]);
+            card.querySelectorAll('input').forEach(input => input.setAttribute('aria-invalid', String(!answers[i])));
+        });
         if (answers.some(answer => !answer)) {
-            cards.forEach((card, i) => card.classList.toggle('question-unanswered', !answers[i]));
             showToast('Debes responder todas las preguntas habilitadas', false);
+            cards.find((card, i) => !answers[i]).querySelector('input:not(:disabled)').focus();
             return;
         }
         if (answers.some(answer => !answer.idOpcion && answer.respuesta.length > 100)) {
@@ -106,6 +147,7 @@ document.addEventListener('DOMContentLoaded', async function () {
             return;
         }
         const ahora = performance.now(); // Congelar antes de la espera HTTP.
+        document.getElementById('mensaje-lectura').textContent = '';
         const payload = answers.map(answer => ({
             id_pregunta: answer.idPregunta, respuesta: answer.respuesta,
             id_opcion: answer.idOpcion,
@@ -120,26 +162,30 @@ document.addEventListener('DOMContentLoaded', async function () {
                 method: 'POST', headers,
                 body: JSON.stringify({ id_texto: Number(textId), respuestas: payload })
             });
+            if (res.status === 401) {
+                localStorage.removeItem('token'); localStorage.removeItem('user');
+                window.location.href = '/'; return;
+            }
             const data = await res.json();
             if (!res.ok) throw new Error(data.error || 'No se guardaron las respuestas');
             guardadas = true;
+            resumenPendiente = {
+                respondidas: data.respuestas.length,
+                correctas: data.respuestas.filter(answer => answer.es_correcta).length
+            };
             data.respuestas.forEach(result => {
                 const card = cards.find(card => Number(card.dataset.idPregunta) === result.id_pregunta);
                 card.classList.remove('answer-correct', 'answer-incorrect', 'question-unanswered');
                 marcarResultado(card, result.es_correcta);
                 card.querySelectorAll('input').forEach(input => { input.disabled = true; });
             });
-            const feedbackRes = await fetch('/feedback-sesion', {
-                method: 'POST', headers, body: JSON.stringify({ id_texto: Number(textId) })
-            });
-            const feedback = await feedbackRes.json();
-            if (!feedbackRes.ok) throw new Error(feedback.error || 'No se pudo cargar el resumen');
-            showSummaryModal(data.respuestas.length,
-                data.respuestas.filter(answer => answer.es_correcta).length, feedback);
-            button.style.display = 'none';
+            await recuperarResumen();
         } catch (error) {
-            showToast((guardadas ? 'Respuestas guardadas. No se pudo mostrar el resumen: ' : '') + error.message, false);
-            if (guardadas && document.querySelector('.answer-incorrect')) showRetryButton();
+            showToast(guardadas ? 'Tus respuestas están guardadas. Vuelve a cargar el resumen para consultar el resultado.'
+                : error instanceof TypeError || error instanceof SyntaxError
+                    ? 'No se pudo confirmar el envío. Tus respuestas siguen en pantalla; comprueba la conexión y consulta la lectura antes de volver a enviarlas.'
+                    : error.message, false);
+            if (guardadas) { button.textContent = 'Volver a cargar resumen'; button.style.display = 'block'; }
         } finally {
             enviandoRespuestas = false;
             button.disabled = false;
@@ -148,8 +194,11 @@ document.addEventListener('DOMContentLoaded', async function () {
 });
 
 function showToast(mensaje, isSuccess = true) {
+    const aviso = document.getElementById('mensaje-lectura');
+    if (aviso) aviso.textContent = mensaje;
     const toast = document.createElement("div");
     toast.className = `toast ${isSuccess ? 'success' : 'error'}`;
+    toast.setAttribute('aria-hidden', 'true'); // El mensaje persistente ya lo anuncia.
     toast.textContent = mensaje;
     document.body.appendChild(toast);
 
@@ -237,14 +286,18 @@ function showSummaryModal(answered, correct, feedbackData) {
         document.getElementById("recommendation-text").textContent = "Buen trabajo. Sigue practicando y poco a poco será más fácil.";
     }
 
-    document.getElementById("summary-modal").style.display = "flex";
+    const resumen = document.getElementById('summary-modal');
+    resumen.returnValue = '';
+    resumen.style.display = 'flex';
+    if (typeof resumen.showModal === 'function' && !resumen.open) resumen.showModal();
+    document.getElementById('summary-title').focus();
 
     document.getElementById("btn-continue-dashboard").onclick = function () {
         window.location.href = "menu.html";
     };
 
     document.getElementById('btn-retry-reading').onclick = () => {
-        document.getElementById('summary-modal').style.display = 'none';
+        cerrarResumen('reintentar');
         prepararReintento();
     };
     document.getElementById('btn-retry-reading').style.display = document.querySelector('.answer-incorrect') ? 'block' : 'none';
@@ -272,6 +325,12 @@ function showSummaryModal(answered, correct, feedbackData) {
         finally { apply.disabled = false; }
     };
 
+}
+
+function cerrarResumen(accion = '') {
+    const resumen = document.getElementById('summary-modal');
+    resumen.style.display = 'none';
+    if (typeof resumen.close === 'function') resumen.close(accion);
 }
 
 async function loadPreviousAnswers(textId) {
@@ -402,12 +461,15 @@ function displayQuestions(questions) {
 
         const label = document.createElement("p");
         label.className = "question-label";
+        label.id = `enunciado-${q.id_pregunta}`;
         label.innerHTML = `<strong>${q.orden || idx + 1}.</strong> ${escaparHtml(q.enunciado)}`;
         div.appendChild(label);
 
         if (q.tipo_respuesta === "opcion") {
             const optionsContainer = document.createElement("div");
             optionsContainer.className = "question-options";
+            optionsContainer.setAttribute('role', 'radiogroup');
+            optionsContainer.setAttribute('aria-labelledby', label.id);
 
             opcionesEnOrdenDeSesion(q).forEach(opcion => {
                 const optionLabel = document.createElement("label");
@@ -427,6 +489,7 @@ function displayQuestions(questions) {
             input.id = `q-${q.id_pregunta}`;
             input.placeholder = "Tu respuesta";
             input.maxLength = 100;
+            input.setAttribute('aria-labelledby', label.id);
             div.appendChild(input);
         }
 

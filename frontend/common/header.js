@@ -34,7 +34,26 @@ document.addEventListener("DOMContentLoaded", async function () {
         const rutaActual = window.location.pathname;
         const navInicio = document.querySelector('[data-nav="inicio"]');
         const navLecturas = document.querySelector('[data-nav="lecturas"]');
-        if ([2, 3].includes(user.rol)) {
+        if (user.rol === 3) {
+            const esSeguimiento = rutaActual.endsWith('/docente.html');
+            if (navInicio) {
+                navInicio.href = '/administrador.html';
+                navInicio.querySelector('span').textContent = 'Administración';
+                navInicio.classList.toggle('active', !esSeguimiento);
+                if (!esSeguimiento) navInicio.setAttribute('aria-current', 'page');
+            }
+            if (navLecturas) {
+                navLecturas.href = '/docente.html';
+                navLecturas.querySelector('span').textContent = 'Seguimiento';
+                navLecturas.classList.toggle('active', esSeguimiento);
+                if (esSeguimiento) navLecturas.setAttribute('aria-current', 'page');
+            }
+            if (!esSeguimiento && !rutaActual.endsWith('/administrador.html')) {
+                window.location.href = '/administrador.html';
+            }
+            return;
+        }
+        if (user.rol === 2) {
             if (navInicio) {
                 navInicio.href = '/docente.html';
                 navInicio.querySelector('span').textContent = 'Seguimiento';
@@ -44,6 +63,10 @@ document.addEventListener("DOMContentLoaded", async function () {
             if (navLecturas) navLecturas.remove();
             if (!rutaActual.endsWith('/docente.html')) window.location.href = '/docente.html';
             return; // Los docentes no realizan el diagnóstico del estudiante.
+        }
+        if (rutaActual.endsWith('/administrador.html')) {
+            window.location.href = '/dashboard.html';
+            return;
         }
         const estaEnInicio = rutaActual.endsWith("/dashboard.html") || rutaActual.endsWith("/inicio");
         const estaEnLecturas = rutaActual.endsWith("/menu.html") || rutaActual.endsWith("/reading.html");

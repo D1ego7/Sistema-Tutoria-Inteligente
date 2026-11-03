@@ -17,6 +17,7 @@ document.addEventListener("DOMContentLoaded", async function () {
         }
         if (response.status === 401 || response.status === 403) {
             localStorage.removeItem("token");
+            localStorage.removeItem("user");
             window.location.href = "/";
             return;
         }
@@ -26,6 +27,7 @@ document.addEventListener("DOMContentLoaded", async function () {
     } catch (error) {
         console.error("Error cargando dashboard:", error);
         document.querySelector(".student-dashboard").classList.add("dashboard-error");
+        document.getElementById('estado-dashboard').textContent = 'No se pudo cargar tu información. Comprueba la conexión y actualiza la página.';
     }
 });
 

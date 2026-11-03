@@ -19,6 +19,10 @@ env/
 .ruff_cache/
 .coverage
 htmlcov/
+coverage/
+coverage.xml
+.nyc_output/
+node_modules/
 
 # Logs and local runtime files
 *.log

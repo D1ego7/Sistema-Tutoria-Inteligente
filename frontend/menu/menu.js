@@ -1,3 +1,4 @@
+let consultaLecturas = 0;
 document.addEventListener("DOMContentLoaded", function () {
     const token = localStorage.getItem("token");
     const user = JSON.parse(localStorage.getItem("user") || "{}");
@@ -30,7 +31,7 @@ async function loadProgress() {
     const userId = getUserId();
 
     try {
-        const res = await fetch(`http://127.0.0.1:5000/progreso`, {
+        const res = await fetch('/progreso', {
             headers: {
                 "Authorization": `Bearer ${token}`
             }
@@ -47,10 +48,12 @@ async function loadProgress() {
         }
 
         const data = await res.json();
+        if (!res.ok) throw new Error(data.error || 'No se pudo cargar el progreso');
         mostrarProgreso(data);
 
     } catch (err) {
         console.error("Error cargando progreso:", err);
+        document.getElementById('recommendation').textContent = 'No se pudo actualizar el progreso. Actualiza la página para volver a consultarlo.';
     }
 }
 
@@ -59,10 +62,11 @@ function capitalize(text) {
 }
 
 async function loadTexts(nivelSeleccionado = "actual") {
+    const turno = ++consultaLecturas;
     const token = localStorage.getItem("token");
 
     try {
-        let url = "http://127.0.0.1:5000/textos";
+        let url = '/textos';
 
         if (nivelSeleccionado !== "actual") {
             url += `?nivel=${encodeURIComponent(nivelSeleccionado)}`;
@@ -74,6 +78,8 @@ async function loadTexts(nivelSeleccionado = "actual") {
             }
         });
 
+        if (turno !== consultaLecturas) return;
+
         if (res.status === 403) {
             window.location.href = "/diagnostico.html";
             return;
@@ -85,6 +91,8 @@ async function loadTexts(nivelSeleccionado = "actual") {
         }
 
         const data = await res.json();
+        if (turno !== consultaLecturas) return;
+        if (!res.ok) throw new Error(data.error || 'No se pudo cargar las lecturas');
 
         llenarComboNiveles(
             data.niveles_permitidos || [],
@@ -97,6 +105,11 @@ async function loadTexts(nivelSeleccionado = "actual") {
 
     } catch (err) {
         console.error("Error cargando textos:", err);
+        if (turno !== consultaLecturas) return;
+        const aviso = document.createElement('p'); aviso.className = 'empty-state';
+        aviso.setAttribute('role', 'status');
+        aviso.textContent = 'No se pudo cargar las lecturas. Comprueba la conexión y vuelve a seleccionar el nivel.';
+        document.getElementById('texts-container').replaceChildren(aviso);
     }
 }
 

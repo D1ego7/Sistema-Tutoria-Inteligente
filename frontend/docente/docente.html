@@ -9,11 +9,13 @@
     <link rel="stylesheet" href="/header.css">
     <link rel="stylesheet" href="/dashboard.css">
     <link rel="stylesheet" href="/docente.css">
+    <link rel="stylesheet" href="/accesibilidad.css">
 </head>
 
 <body>
+    <a class="saltar-contenido" href="#contenido-principal">Saltar al contenido principal</a>
     <div id="app-header"></div>
-    <main class="student-dashboard">
+    <main class="student-dashboard" id="contenido-principal" tabindex="-1">
         <section class="welcome-section">
             <div>
                 <p class="eyebrow">Espacio docente</p>
@@ -40,15 +42,16 @@
                     </select></label>
                 <button class="boton-docente" type="submit">Buscar</button>
             </form>
-            <div class="tabla-contenedor">
-                <table>
+            <div class="tabla-contenedor" tabindex="0" role="region"
+                aria-label="Tabla de estudiantes; desplazamiento horizontal disponible">
+                <table aria-label="Estudiantes y resultados">
                     <thead>
                         <tr>
-                            <th>Estudiante</th>
-                            <th>Diagnóstico</th>
-                            <th>Nivel actual</th>
-                            <th>Aciertos</th>
-                            <th></th>
+                            <th scope="col">Estudiante</th>
+                            <th scope="col">Diagnóstico</th>
+                            <th scope="col">Nivel actual</th>
+                            <th scope="col">Aciertos</th>
+                            <th scope="col">Seguimiento</th>
                         </tr>
                     </thead>
                     <tbody id="estudiantes"></tbody>
@@ -105,15 +108,16 @@
                 <div class="panel-heading">
                     <h3>Desempeño por nivel</h3>
                 </div>
-                <div class="tabla-contenedor">
-                    <table>
+                <div class="tabla-contenedor" tabindex="0" role="region"
+                    aria-label="Desempeño por nivel; desplazamiento horizontal disponible">
+                    <table aria-label="Desempeño por nivel">
                         <thead>
                             <tr>
-                                <th>Nivel</th>
-                                <th>Preguntas evaluadas</th>
-                                <th>Correctas</th>
-                                <th>Aciertos</th>
-                                <th>Requieren refuerzo</th>
+                                <th scope="col">Nivel</th>
+                                <th scope="col">Preguntas evaluadas</th>
+                                <th scope="col">Correctas</th>
+                                <th scope="col">Aciertos</th>
+                                <th scope="col">Requieren refuerzo</th>
                             </tr>
                         </thead>
                         <tbody id="por-nivel"></tbody>

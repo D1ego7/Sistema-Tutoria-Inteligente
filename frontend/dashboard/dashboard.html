@@ -8,12 +8,15 @@
     <link rel="stylesheet" href="/styles.css">
     <link rel="stylesheet" href="/header.css">
     <link rel="stylesheet" href="/dashboard.css">
+    <link rel="stylesheet" href="/accesibilidad.css">
 </head>
 
 <body>
+    <a class="saltar-contenido" href="#contenido-principal">Saltar al contenido principal</a>
     <div id="app-header"></div>
 
-    <main class="student-dashboard">
+    <main class="student-dashboard" id="contenido-principal" tabindex="-1">
+        <p id="estado-dashboard" role="status" aria-live="polite"></p>
         <section class="welcome-section">
             <div>
                 <p class="eyebrow">Tu espacio de aprendizaje</p>

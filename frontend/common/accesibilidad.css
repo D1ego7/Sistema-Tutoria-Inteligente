@@ -1,0 +1,354 @@
+/* Ajustes comunes de accesibilidad que conservan la paleta azul y violeta. */
+:root {
+    --texto-secundario-accesible: #52627e;
+    --azul-accesible: #2458b5;
+    --violeta-accesible: #6740a0;
+    --foco-accesible: #1d4ed8;
+}
+
+:where(a, button, input, select, textarea, summary, [tabindex]):focus-visible {
+    outline: 3px solid var(--foco-accesible) !important;
+    outline-offset: 3px !important;
+    box-shadow: 0 0 0 2px white;
+}
+
+.option-card:has(input:focus-visible) {
+    outline: 3px solid var(--foco-accesible);
+    outline-offset: 3px;
+}
+
+.saltar-contenido {
+    position: fixed;
+    left: 1rem;
+    top: .75rem;
+    z-index: 2000;
+    transform: translateY(-180%);
+    padding: .8rem 1rem;
+    background: white;
+    color: #172554;
+    border: 2px solid var(--foco-accesible);
+    border-radius: .5rem;
+    font-weight: 700;
+}
+
+.saltar-contenido:focus {
+    transform: none;
+}
+
+main,
+[role="main"] {
+    scroll-margin-top: 7rem;
+}
+
+[id],
+input,
+button,
+select,
+textarea {
+    scroll-margin-block: 7rem 2rem;
+}
+
+.login-wrapper,
+.login-card {
+    box-sizing: border-box;
+    max-width: 100%;
+    min-width: 0;
+}
+
+.questions-sidebar-card,
+.question-card,
+.reading-card {
+    box-sizing: border-box;
+    max-width: 100%;
+}
+
+.login-card .eye-icon {
+    width: 2rem;
+    height: 2rem;
+    padding: .25rem;
+    border: 0;
+    border-radius: .3rem;
+    color: #52627e;
+    background: transparent;
+    box-shadow: none;
+}
+
+.login-card .eye-icon:hover {
+    box-shadow: none;
+    background: #edf3ff;
+}
+
+.login-card .eye-icon svg {
+    pointer-events: none;
+}
+
+.login-card button[type="submit"],
+#submit-diagnostic,
+#submit-answers,
+.submit-answers-styled,
+.btn-primary,
+.btn-read:not(.btn-completed),
+.boton-docente,
+.primary-action,
+.quick-action.primary {
+    background: linear-gradient(135deg, var(--azul-accesible), var(--violeta-accesible));
+    color: white;
+}
+
+.reading-hero,
+.modal-header {
+    background: linear-gradient(135deg, var(--azul-accesible), var(--violeta-accesible));
+}
+
+.btn-read:not(.btn-completed) {
+    background: linear-gradient(135deg, var(--azul-accesible), var(--violeta-accesible)) !important;
+}
+
+.btn-read.btn-completed {
+    background: linear-gradient(135deg, #166534, #15803d) !important;
+}
+
+.secondary-action {
+    color: #422006;
+}
+
+.goal-row,
+.next-reading-content p {
+    color: var(--texto-secundario-accesible);
+}
+
+input:not([type="radio"]):not([type="checkbox"]),
+select,
+textarea {
+    border-color: #7b8799;
+}
+
+.retry-button-styled {
+    color: #422006;
+}
+
+.summary-card p,
+.panel-heading p,
+.welcome-copy,
+.activity-info small,
+.empty-state,
+.text-meta,
+.section-header p,
+.meta-intento,
+.nota-docente,
+.fecha-lectura,
+.feedback-empty {
+    color: var(--texto-secundario-accesible);
+}
+
+.back-button:hover,
+.summary-stat .stat-value,
+.feedback-value,
+.boton-secundario {
+    color: var(--azul-accesible);
+}
+
+input::placeholder,
+textarea::placeholder {
+    color: #637086;
+    opacity: 1;
+}
+
+/* El diálogo nativo mantiene el fondo inerte y permite salir con Escape. */
+dialog.modal {
+    margin: 0;
+    padding: 0;
+    border: 0;
+    max-width: none;
+    max-height: none;
+    box-sizing: border-box;
+    color: #172554;
+}
+
+dialog.modal:not([open]) {
+    display: none !important;
+}
+
+dialog.modal::backdrop {
+    background: transparent;
+}
+
+.modal-header {
+    position: relative;
+    padding-inline: 3.5rem;
+}
+
+.cerrar-resumen {
+    position: absolute;
+    top: .65rem;
+    right: .65rem;
+    min-width: 2rem;
+    min-height: 2rem;
+    padding: .2rem;
+    border: 1px solid white;
+    border-radius: .5rem;
+    color: #172554;
+    background: white;
+    font-size: 1.4rem;
+    cursor: pointer;
+}
+
+.error {
+    color: #b42338;
+}
+
+.mensaje-lectura {
+    margin-block: .75rem;
+    color: #b42338;
+    line-height: 1.5;
+}
+
+.mensaje-lectura:empty {
+    display: none;
+}
+
+#estado-dashboard:empty {
+    display: none;
+}
+
+#estado-dashboard {
+    color: #b42338;
+    line-height: 1.5;
+}
+
+.revision-docente textarea,
+.acciones-formulario button {
+    max-width: 100%;
+    box-sizing: border-box;
+}
+
+@media (max-width: 60rem) {
+    .header {
+        position: static;
+    }
+
+    main,
+    [role="main"],
+    [id],
+    input,
+    button,
+    select,
+    textarea {
+        scroll-margin-top: 1rem;
+    }
+}
+
+@media (max-width: 40rem) {
+
+    .main-content,
+    .student-dashboard {
+        box-sizing: border-box;
+        width: 100%;
+        min-width: 0;
+    }
+
+    .main-content {
+        padding-inline: .75rem;
+    }
+
+    .reading-column,
+    .questions-panel,
+    .text-list,
+    .panel,
+    .summary-card,
+    .dashboard-grid>*,
+    .reading-grid>* {
+        min-width: 0;
+    }
+
+    .questions-sidebar-card,
+    .question-card,
+    .reading-card {
+        box-sizing: border-box;
+        max-width: 100%;
+    }
+
+    .reading-body {
+        text-align: left;
+    }
+
+    .toast {
+        box-sizing: border-box;
+        max-width: calc(100% - 1rem);
+    }
+
+    .header-content,
+    .user-info,
+    .student-nav,
+    .welcome-section,
+    .section-header,
+    .modal-footer,
+    .panel-row {
+        flex-wrap: wrap;
+    }
+
+    .level-filter-box {
+        min-width: 0;
+        width: 100%;
+        box-sizing: border-box;
+    }
+
+    .texts-grid {
+        grid-template-columns: minmax(0, 1fr);
+    }
+
+    .primary-action {
+        min-width: 0;
+        max-width: 100%;
+        box-sizing: border-box;
+    }
+
+    .enlace-seguimiento {
+        white-space: normal;
+    }
+
+    .modal-content {
+        box-sizing: border-box;
+        max-width: calc(100% - 1rem);
+    }
+
+    .modal-footer button {
+        max-width: 100%;
+        white-space: normal;
+    }
+
+    .tabla-contenedor {
+        max-width: 100%;
+    }
+
+    #user-greeting {
+        white-space: normal;
+        max-width: none;
+        overflow: visible;
+        text-overflow: clip;
+    }
+
+    p,
+    h2,
+    h3,
+    h4,
+    h5,
+    td,
+    th,
+    label,
+    .option-text {
+        overflow-wrap: anywhere;
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+
+    *,
+    *::before,
+    *::after {
+        animation-duration: .01ms !important;
+        animation-iteration-count: 1 !important;
+        transition-duration: .01ms !important;
+        scroll-behavior: auto !important;
+    }
+}

@@ -1,0 +1,151 @@
+.cabecera-cuentas {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+    flex-wrap: wrap;
+}
+
+.cabecera-cuentas .panel-heading {
+    margin-bottom: 0;
+}
+
+.busqueda-cuentas {
+    flex: 1;
+    min-width: 200px;
+    max-width: 420px;
+}
+
+.acciones-cuenta {
+    display: flex;
+    gap: .5rem;
+    flex-wrap: wrap;
+}
+
+.enlace-seguimiento {
+    text-decoration: none;
+    display: inline-block;
+    white-space: nowrap;
+}
+
+.boton-peligro {
+    color: #a32439;
+    background: #fff0f2;
+    border: 1px solid #f6cbd3;
+    padding: .65rem 1rem;
+    border-radius: .65rem;
+    font: inherit;
+    font-weight: 700;
+    cursor: pointer;
+}
+
+.boton-peligro:hover:not(:disabled) {
+    background: #fce0e5;
+}
+
+.acciones-cuenta button {
+    font-size: .85rem;
+}
+
+#estado-administracion {
+    min-height: 1.5rem;
+    color: #24508b;
+}
+
+#estado-administracion[data-error="true"],
+.error-administracion {
+    color: #ad2038;
+}
+
+.error-administracion:empty {
+    display: none;
+}
+
+dialog {
+    width: min(480px, calc(100% - 2rem));
+    max-height: calc(100vh - 2rem);
+    overflow-y: auto;
+    border: 1px solid #dbe4f3;
+    border-radius: 1.3rem;
+    padding: 0;
+    color: #172554;
+    background: white;
+    box-shadow: 0 24px 80px #17255435;
+}
+
+dialog::backdrop {
+    background: #17255480;
+}
+
+.formulario-administracion {
+    padding: 1.75rem;
+}
+
+.formulario-administracion h2 {
+    font-size: 1.5rem;
+    margin: .4rem 0 .75rem;
+}
+
+.formulario-administracion label {
+    display: flex;
+    flex-direction: column;
+    gap: .45rem;
+    margin: 1.1rem 0;
+    font-size: .95rem;
+    font-weight: 600;
+}
+
+.formulario-administracion input {
+    box-sizing: border-box;
+    width: 100%;
+    padding: .8rem;
+    border: 1px solid #cbd5e1;
+    border-radius: .65rem;
+    color: #172554;
+    background: #fbfdff;
+    font: inherit;
+    font-weight: 400;
+}
+
+.ayuda-formulario {
+    color: #5b6b89;
+    font-size: .88rem;
+    line-height: 1.5;
+}
+
+.acciones-formulario {
+    display: flex;
+    gap: .7rem;
+    justify-content: flex-end;
+    margin-top: 1.5rem;
+}
+
+.advertencia-eliminar {
+    padding: .8rem;
+    background: #fff4ed;
+    border-radius: .6rem;
+    color: #984215;
+}
+
+.solo-lectores {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+}
+
+@media (max-width: 650px) {
+    .welcome-section {
+        flex-wrap: wrap;
+        gap: 1rem;
+    }
+
+    .acciones-formulario {
+        flex-wrap: wrap;
+    }
+
+    .formulario-administracion {
+        padding: 1.2rem;
+    }
+}

@@ -7,13 +7,19 @@ let revisionDetalle = 0;
 const elemento = id => document.getElementById(id);
 const texto = (id, valor) => { elemento(id).textContent = valor; };
 
+function puedeRevisarRespuestas() {
+    try { return JSON.parse(localStorage.getItem('user') || '{}').rol === 2; }
+    catch { return false; }
+}
+
 async function consultar(ruta) {
     const res = await fetch(ruta, { headers: { Authorization: `Bearer ${localStorage.getItem('token')}` } });
-    const data = await res.json();
-    if (res.status === 401) {
+    if (res.status === 401 || res.status === 403) {
         localStorage.removeItem('token'); localStorage.removeItem('user');
         window.location.href = '/';
+        throw new Error('La sesión terminó o ya no tiene permisos. Vuelve a ingresar.');
     }
+    const data = await res.json();
     if (!res.ok) throw new Error(data.error || 'No se pudo consultar el seguimiento');
     return data;
 }
@@ -63,12 +69,15 @@ async function cargarEstudiantes() {
         }
         paginar('lista', data);
         informar(data.total === 1 ? '1 estudiante encontrado.' : data.total ? `${data.total} estudiantes encontrados.` : 'No se encontraron estudiantes.');
-    } catch (error) { if (revision === revisionLista) informar(error.message, true); }
+    } catch (error) {
+        if (revision === revisionLista) informar(error instanceof TypeError || error instanceof SyntaxError
+            ? 'No se pudo cargar la lista. Comprueba la conexión y vuelve a pulsar Buscar.' : error.message, true);
+    }
 }
 
 async function cargarDetalle(enfocar = false) {
     const revision = ++revisionDetalle;
-    elemento('detalle').hidden = true;
+    if (enfocar) elemento('detalle').hidden = true;
     informar('Cargando seguimiento…');
     try {
         const data = await consultar(`/api/docente/estudiantes/${estudianteSeleccionado}?pagina=${paginaHistorial}`);
@@ -90,7 +99,10 @@ async function cargarDetalle(enfocar = false) {
         paginar('historial', data); elemento('detalle').hidden = false;
         informar('Seguimiento actualizado.');
         if (enfocar) elemento('nombre-estudiante').focus();
-    } catch (error) { if (revision === revisionDetalle) informar(error.message, true); }
+    } catch (error) {
+        if (revision === revisionDetalle) informar(error instanceof TypeError || error instanceof SyntaxError
+            ? 'No se pudo actualizar el seguimiento. Comprueba la conexión y vuelve a abrir el detalle.' : error.message, true);
+    }
 }
 
 function agruparHistorial(historial) {
@@ -188,10 +200,14 @@ function tarjetaIntento(intento) {
         : (intento.retroalimentacion || 'No registrada para este intento')));
     articulo.append(meta, resultado, respuesta);
     if (!pendiente) articulo.append(feedback);
-    if (pendiente) articulo.append(formularioRevision(intento));
+    if (pendiente) {
+        if (puedeRevisarRespuestas()) articulo.append(formularioRevision(intento));
+        else articulo.append(nodoHistorial('p', 'nota-docente', 'Solo lectura: la evaluación y la retroalimentación corresponden al docente.'));
+    }
     if (intento.fecha_revision) {
         const registro = document.createElement('p'); registro.className = 'nota-docente';
-        registro.textContent = `Revisado por usuario ${intento.id_usuario_revisor} · ${intento.fecha_revision}`;
+        const revisor = intento.id_usuario_revisor ? `usuario ${intento.id_usuario_revisor}` : 'docente cuya cuenta fue eliminada';
+        registro.textContent = `Revisado por ${revisor} · ${intento.fecha_revision}`;
         articulo.append(registro);
     }
     return articulo;
@@ -209,22 +225,43 @@ function formularioRevision(intento) {
     const devolucion = document.createElement('textarea'); devolucion.maxLength = 500;
     label.append(devolucion); form.append(label);
     const nota = document.createElement('p'); nota.className = 'nota-docente';
+    nota.setAttribute('role', 'status'); nota.setAttribute('aria-live', 'polite');
     nota.textContent = 'Selecciona el resultado de tu revisión. Puedes añadir una orientación para el estudiante.';
     const boton = document.createElement('button'); boton.type = 'submit'; boton.className = 'boton-docente'; boton.textContent = 'Guardar revisión';
     form.append(nota, boton);
+    let enviando = false, guardada = false;
     form.addEventListener('submit', async e => {
-        e.preventDefault(); boton.disabled = true;
+        e.preventDefault(); if (enviando || guardada) return;
+        enviando = true; boton.disabled = true;
+        const estudianteAlGuardar = estudianteSeleccionado, detalleAlGuardar = revisionDetalle;
         try {
-            if (!['si', 'no'].includes(cumple.value)) throw new Error('Debes seleccionar Cumple o No cumple');
-            const body = { cumple: cumple.value === 'si', devolucion: devolucion.value };
+            if (!puedeRevisarRespuestas()) throw new Error('Solo los docentes pueden guardar revisiones.');
+            if (!['si', 'no'].includes(cumple.value)) {
+                cumple.focus(); throw new Error('Debes seleccionar Cumple o No cumple');
+            }
+            if (devolucion.value.length > 500) {
+                devolucion.focus(); throw new Error('La retroalimentación admite hasta 500 caracteres.');
+            }
+            cumple.disabled = true; devolucion.disabled = true;
+            const body = { cumple: cumple.value === 'si', devolucion: devolucion.value.trim() };
             const res = await fetch(`/api/docente/respuestas/${intento.id_respuesta_est}/revision`, {
                 method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${localStorage.getItem('token')}` }, body: JSON.stringify(body)
             });
+            if (res.status === 401 || res.status === 403) {
+                localStorage.removeItem('token'); localStorage.removeItem('user'); window.location.href = '/';
+                throw new Error('La sesión terminó o ya no tiene permisos. Vuelve a ingresar.');
+            }
             const data = await res.json();
             if (!res.ok) throw new Error(data.error || 'No se pudo guardar la revisión');
-            await cargarEstudiantes(); await cargarDetalle();
-        } catch (error) { informar(error.message, true); }
-        finally { boton.disabled = false; }
+            guardada = true; boton.textContent = 'Revisión guardada'; nota.textContent = 'La revisión se guardó correctamente.';
+            await cargarEstudiantes();
+            if (estudianteSeleccionado === estudianteAlGuardar && revisionDetalle === detalleAlGuardar) await cargarDetalle();
+        } catch (error) {
+            nota.textContent = error instanceof TypeError || error instanceof SyntaxError
+                ? 'No se pudo confirmar el guardado. El comentario se conserva; consulta el seguimiento antes de volver a guardar.' : error.message;
+            informar(nota.textContent, true);
+        }
+        finally { enviando = false; boton.disabled = guardada; cumple.disabled = guardada; devolucion.disabled = guardada; }
     });
     return form;
 }

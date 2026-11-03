@@ -8,12 +8,14 @@
     <link rel="stylesheet" href="/styles.css">
     <link rel="stylesheet" href="/header.css">
     <link rel="stylesheet" href="/reading.css">
+    <link rel="stylesheet" href="/accesibilidad.css">
 </head>
 
 <body>
+    <a class="saltar-contenido" href="#contenido-principal">Saltar al contenido principal</a>
     <div id="app-header"></div>
 
-    <main class="main-content reading-grid">
+    <main class="main-content reading-grid" id="contenido-principal" tabindex="-1">
         <div class="reading-column">
             <button id="back-btn" class="back-button">← Volver al menú</button>
 
@@ -32,16 +34,18 @@
             <div class="questions-sidebar-card">
                 <h3>Preguntas de comprensión</h3>
                 <div id="questions-list"></div>
+                <p id="mensaje-lectura" class="mensaje-lectura" role="status" aria-live="polite" aria-atomic="true"></p>
                 <button id="submit-answers">Enviar respuestas</button>
             </div>
         </aside>
     </main>
 
     <!-- Modal de resumen de sesión -->
-    <div id="summary-modal" class="modal" style="display: none;">
+    <dialog id="summary-modal" class="modal" aria-labelledby="summary-title" style="display: none;">
         <div class="modal-content">
             <div class="modal-header">
-                <h2 id="summary-title">Resumen de la sesión</h2>
+                <h2 id="summary-title" tabindex="-1" autofocus>Resumen de la sesión</h2>
+                <button id="cerrar-resumen" class="cerrar-resumen" type="button" aria-label="Cerrar resumen">×</button>
             </div>
             <div class="modal-body">
                 <div class="session-summary">
@@ -98,7 +102,7 @@
                 <button id="btn-continue-dashboard" class="btn-primary">Volver al menú</button>
             </div>
         </div>
-    </div>
+    </dialog>
 
     <script src="header.js"></script>
     <script src="/reading-icons.js"></script>

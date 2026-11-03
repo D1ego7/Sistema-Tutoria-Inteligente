@@ -38,6 +38,8 @@ def aplicar_nivel_tras_revision(cursor, sid, rid):
 
 
 def revisar_respuesta(usuario, rid, data, get_cursor):
+    if usuario['rol'] != 2:
+        raise ActivityError('Solo los docentes pueden guardar revisiones. El administrador tiene acceso de solo lectura.',403)
     correcta = data.get('cumple')
     if type(correcta) is not bool:
         raise ValueError('Debes seleccionar Cumple o No cumple')
@@ -45,8 +47,6 @@ def revisar_respuesta(usuario, rid, data, get_cursor):
     if not isinstance(devolucion,str) or len(devolucion)>500:
         raise ValueError('La retroalimentación opcional admite hasta 500 caracteres')
     devolucion = devolucion.strip() or None
-    if usuario['rol'] not in (2,3):
-        raise ActivityError('Solo docentes y administradores pueden revisar respuestas',403)
     conn,cursor = get_cursor()
     try:
         validar_acceso_docente(cursor,usuario,bloquear=True)
