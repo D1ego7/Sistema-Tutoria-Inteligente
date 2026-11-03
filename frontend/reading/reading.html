@@ -1,107 +1,109 @@
 <!DOCTYPE html>
 <html lang="es">
+
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Tutor Inteligente - Lectura</title>
-<link rel="stylesheet" href="/styles.css">
-<link rel="stylesheet" href="/header.css">
-<link rel="stylesheet" href="/reading.css">
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Tutor Inteligente - Lectura</title>
+    <link rel="stylesheet" href="/styles.css">
+    <link rel="stylesheet" href="/header.css">
+    <link rel="stylesheet" href="/reading.css">
 </head>
 
 <body>
-<div id="app-header"></div>
+    <div id="app-header"></div>
 
-<main class="main-content reading-grid">
-    <div class="reading-column">
-        <button id="back-btn" class="back-button">← Volver al menú</button>
+    <main class="main-content reading-grid">
+        <div class="reading-column">
+            <button id="back-btn" class="back-button">← Volver al menú</button>
 
-        <div class="reading-card">
-            <div class="reading-hero">
-                <div id="reading-emoji" class="reading-emoji" aria-hidden="true">📖</div>
-                <div>
-                    <h2 id="text-title"></h2>
+            <div class="reading-card">
+                <div class="reading-hero">
+                    <div id="reading-emoji" class="reading-emoji" aria-hidden="true">📖</div>
+                    <div>
+                        <h2 id="text-title"></h2>
+                    </div>
+                </div>
+                <div id="text-body" class="reading-body"></div>
+            </div>
+        </div>
+
+        <aside class="questions-panel">
+            <div class="questions-sidebar-card">
+                <h3>Preguntas de comprensión</h3>
+                <div id="questions-list"></div>
+                <button id="submit-answers">Enviar respuestas</button>
+            </div>
+        </aside>
+    </main>
+
+    <!-- Modal de resumen de sesión -->
+    <div id="summary-modal" class="modal" style="display: none;">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2 id="summary-title">Resumen de la sesión</h2>
+            </div>
+            <div class="modal-body">
+                <div class="session-summary">
+                    <div class="summary-stat">
+                        <p class="stat-label">Preguntas Respondidas</p>
+                        <p class="stat-value" id="summary-answered">0</p>
+                    </div>
+                    <div class="summary-stat">
+                        <p class="stat-label">Respuestas Correctas</p>
+                        <p class="stat-value" id="summary-correct">0</p>
+                    </div>
+                    <div class="summary-stat">
+                        <p class="stat-label">Porcentaje</p>
+                        <p class="stat-value" id="summary-percentage">0%</p>
+                    </div>
+                </div>
+                <p id="summary-review-status" class="summary-review-status" role="status" hidden></p>
+                <div class="feedback-overview">
+                    <div class="feedback-card">
+                        <p class="feedback-label">Nivel actual</p>
+                        <p class="feedback-value" id="feedback-level">-</p>
+                    </div>
+                    <div class="feedback-card">
+                        <p class="feedback-label">Tendencia</p>
+                        <p class="feedback-value" id="feedback-trend">-</p>
+                    </div>
+                    <div class="feedback-card">
+                        <p class="feedback-label">Nivel recomendado</p>
+                        <p class="feedback-value" id="feedback-next-level">-</p>
+                    </div>
+                </div>
+                <div class="feedback-block">
+                    <h4>Mensaje del tutor</h4>
+                    <p id="feedback-tutor-message">-</p>
+                </div>
+                <div class="feedback-block">
+                    <h4>Errores detectados</h4>
+                    <div id="feedback-errors">
+                        <p class="feedback-empty">No se detectaron errores específicos.</p>
+                    </div>
+                </div>
+                <div class="feedback-block">
+                    <h4>Recomendación de práctica</h4>
+                    <div id="feedback-practice">
+                        <p class="feedback-empty">No hay recomendaciones adicionales por ahora.</p>
+                    </div>
+                </div>
+                <div id="recommendation-box" class="recommendation-box" style="display: none;">
+                    <p id="recommendation-text"></p>
                 </div>
             </div>
-            <div id="text-body" class="reading-body"></div>
+            <div class="modal-footer">
+                <button id="btn-retry-reading" class="btn-secondary">Volver a intentar</button>
+                <button id="btn-continue-dashboard" class="btn-primary">Volver al menú</button>
+            </div>
         </div>
     </div>
 
-    <aside class="questions-panel">
-        <div class="questions-sidebar-card">
-            <h3>Preguntas de comprensión</h3>
-            <div id="questions-list"></div>
-            <button id="submit-answers">Enviar respuestas</button>
-        </div>
-    </aside>
-</main>
-
-<!-- Modal de resumen de sesión -->
-<div id="summary-modal" class="modal" style="display: none;">
-    <div class="modal-content">
-        <div class="modal-header">
-            <h2 id="summary-title">Resumen de la sesión</h2>
-        </div>
-        <div class="modal-body">
-            <div class="session-summary">
-                <div class="summary-stat">
-                    <p class="stat-label">Preguntas Respondidas</p>
-                    <p class="stat-value" id="summary-answered">0</p>
-                </div>
-                <div class="summary-stat">
-                    <p class="stat-label">Respuestas Correctas</p>
-                    <p class="stat-value" id="summary-correct">0</p>
-                </div>
-                <div class="summary-stat">
-                    <p class="stat-label">Porcentaje</p>
-                    <p class="stat-value" id="summary-percentage">0%</p>
-                </div>
-            </div>
-            <p id="summary-review-status" class="summary-review-status" role="status" hidden></p>
-            <div class="feedback-overview">
-                <div class="feedback-card">
-                    <p class="feedback-label">Nivel actual</p>
-                    <p class="feedback-value" id="feedback-level">-</p>
-                </div>
-                <div class="feedback-card">
-                    <p class="feedback-label">Tendencia</p>
-                    <p class="feedback-value" id="feedback-trend">-</p>
-                </div>
-                <div class="feedback-card">
-                    <p class="feedback-label">Nivel recomendado</p>
-                    <p class="feedback-value" id="feedback-next-level">-</p>
-                </div>
-            </div>
-            <div class="feedback-block">
-                <h4>Mensaje del tutor</h4>
-                <p id="feedback-tutor-message">-</p>
-            </div>
-            <div class="feedback-block">
-                <h4>Errores detectados</h4>
-                <div id="feedback-errors">
-                    <p class="feedback-empty">No se detectaron errores específicos.</p>
-                </div>
-            </div>
-            <div class="feedback-block">
-                <h4>Recomendación de práctica</h4>
-                <div id="feedback-practice">
-                    <p class="feedback-empty">No hay recomendaciones adicionales por ahora.</p>
-                </div>
-            </div>
-            <div id="recommendation-box" class="recommendation-box" style="display: none;">
-                <p id="recommendation-text"></p>
-            </div>
-        </div>
-        <div class="modal-footer">
-            <button id="btn-retry-reading" class="btn-secondary">Volver a intentar</button>
-            <button id="btn-continue-dashboard" class="btn-primary">Volver al menú</button>
-        </div>
-    </div>
-</div>
-
-<script src="header.js"></script>
-<script src="/reading-icons.js"></script>
-<script src="reading.js"></script>
+    <script src="header.js"></script>
+    <script src="/reading-icons.js"></script>
+    <script src="reading.js"></script>
 
 </body>
+
 </html>

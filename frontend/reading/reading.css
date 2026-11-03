@@ -201,7 +201,7 @@
     box-shadow: inset 0 0 0 3px #ffffff;
 }
 
-.option-card input[type="radio"]:focus-visible + .option-marker {
+.option-card input[type="radio"]:focus-visible+.option-marker {
     outline: 3px solid rgba(52, 120, 246, 0.25);
     outline-offset: 2px;
 }
@@ -584,7 +584,8 @@
     justify-content: flex-end;
 }
 
-.btn-primary, .btn-secondary {
+.btn-primary,
+.btn-secondary {
     padding: 0.75rem 1.5rem;
     border-radius: 0.75rem;
     font-weight: 600;
@@ -639,6 +640,7 @@
         transform: translateX(400px);
         opacity: 0;
     }
+
     to {
         transform: translateX(0);
         opacity: 1;
@@ -693,6 +695,7 @@
         opacity: 0;
         transform: translateY(14px) scale(0.98);
     }
+
     to {
         opacity: 1;
         transform: translateY(0) scale(1);
@@ -700,13 +703,93 @@
 }
 
 /* Una misma jerarquía visual para las seis tarjetas del resumen. */
-#summary-modal { font-family: inherit; }
-#summary-modal .session-summary, #summary-modal .feedback-overview { gap: .75rem; margin-bottom: 1rem; }
-#summary-modal .summary-stat, #summary-modal .feedback-card { display: flex; flex-direction: column; justify-content: center; text-align: center; padding: 1rem .65rem; min-height: 6rem; box-sizing: border-box; background: #f8fafc; border: 1px solid #e2e8f0; border-radius: .9rem; box-shadow: none; }
-#summary-modal .stat-label, #summary-modal .feedback-label { font-family: inherit; font-size: .85rem; font-weight: 600; color: #475569; margin: 0; line-height: 1.4; }
-#summary-modal .stat-value, #summary-modal .feedback-value { font-family: inherit; font-size: 1.1rem; font-weight: 700; color: #1d4ed8; margin: .55rem 0 0; line-height: 1.4; overflow-wrap: anywhere; }
-#summary-modal .feedback-block h4 { font-family: inherit; color: #263b6c; font-size: .95rem; font-weight: 700; }
-#summary-modal .feedback-block p, #summary-modal .feedback-list, #summary-modal #recommendation-text { font-family: inherit; color: #334155; font-size: .95rem; line-height: 1.6; }
-.summary-review-status { padding: .8rem 1rem; margin: 0 0 1rem; border: 1px solid #dbe7ff; border-radius: .75rem; background: #eef4ff; color: #263b6c; font-size: .9rem; line-height: 1.6; }
-.summary-review-status[hidden] { display: none; }
-@media (max-width:420px) { #summary-modal .session-summary, #summary-modal .feedback-overview { grid-template-columns: 1fr; } #summary-modal .summary-stat, #summary-modal .feedback-card { min-height: 0; padding: .75rem; } }
+#summary-modal {
+    font-family: inherit;
+}
+
+#summary-modal .session-summary,
+#summary-modal .feedback-overview {
+    gap: .75rem;
+    margin-bottom: 1rem;
+}
+
+#summary-modal .summary-stat,
+#summary-modal .feedback-card {
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    text-align: center;
+    padding: 1rem .65rem;
+    min-height: 6rem;
+    box-sizing: border-box;
+    background: #f8fafc;
+    border: 1px solid #e2e8f0;
+    border-radius: .9rem;
+    box-shadow: none;
+}
+
+#summary-modal .stat-label,
+#summary-modal .feedback-label {
+    font-family: inherit;
+    font-size: .85rem;
+    font-weight: 600;
+    color: #475569;
+    margin: 0;
+    line-height: 1.4;
+}
+
+#summary-modal .stat-value,
+#summary-modal .feedback-value {
+    font-family: inherit;
+    font-size: 1.1rem;
+    font-weight: 700;
+    color: #1d4ed8;
+    margin: .55rem 0 0;
+    line-height: 1.4;
+    overflow-wrap: anywhere;
+}
+
+#summary-modal .feedback-block h4 {
+    font-family: inherit;
+    color: #263b6c;
+    font-size: .95rem;
+    font-weight: 700;
+}
+
+#summary-modal .feedback-block p,
+#summary-modal .feedback-list,
+#summary-modal #recommendation-text {
+    font-family: inherit;
+    color: #334155;
+    font-size: .95rem;
+    line-height: 1.6;
+}
+
+.summary-review-status {
+    padding: .8rem 1rem;
+    margin: 0 0 1rem;
+    border: 1px solid #dbe7ff;
+    border-radius: .75rem;
+    background: #eef4ff;
+    color: #263b6c;
+    font-size: .9rem;
+    line-height: 1.6;
+}
+
+.summary-review-status[hidden] {
+    display: none;
+}
+
+@media (max-width:420px) {
+
+    #summary-modal .session-summary,
+    #summary-modal .feedback-overview {
+        grid-template-columns: 1fr;
+    }
+
+    #summary-modal .summary-stat,
+    #summary-modal .feedback-card {
+        min-height: 0;
+        padding: .75rem;
+    }
+}

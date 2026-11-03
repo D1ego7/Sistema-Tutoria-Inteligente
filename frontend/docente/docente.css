@@ -1,65 +1,417 @@
 /* Complementa los componentes y la paleta del Inicio existente. */
-[hidden] { display: none !important; }
-.student-dashboard > .panel, #detalle > .panel { margin-bottom: 1.5rem; }
-.filtros-docente { display: flex; flex-wrap: wrap; align-items: end; gap: 1rem; margin: 1.25rem 0; }
-.filtros-docente label { display: flex; flex-direction: column; gap: .4rem; color: #263b6c; font-size: .9rem; }
-.filtros-docente input, .filtros-docente select { font: inherit; padding: .65rem .8rem; border: 1px solid #cbd5e1; border-radius: .65rem; background: white; color: #172554; max-width: 100%; box-sizing: border-box; }
-.boton-docente, .boton-secundario { font: inherit; font-weight: 700; padding: .65rem 1rem; border-radius: .65rem; cursor: pointer; border: 0; }
-.boton-docente { background: linear-gradient(135deg, #3478f6, #2362d9); color: white; }
-.boton-secundario { background: #e6efff; color: #2861c7; }
-button:disabled { opacity: .5; cursor: default; }
-button:focus-visible, input:focus-visible, select:focus-visible { outline: 3px solid #4f46e5; outline-offset: 2px; }
-.tabla-contenedor { overflow-x: auto; }
-table { width: 100%; border-collapse: collapse; font-size: .9rem; }
-th { text-align: left; background: #eef4ff; color: #263b6c; }
-th, td { padding: .8rem; border-bottom: 1px solid #edf1f7; }
-td { overflow-wrap: anywhere; }
-.paginacion { display: flex; gap: 1rem; justify-content: center; align-items: center; padding-top: 1rem; font-size: .85rem; }
-.nota-docente, .meta-intento { color: #64748b; font-size: .85rem; }
-.intento { border-bottom: 1px solid #edf1f7; padding: 1rem 0; }
-.intento h4 { margin: .5rem 0; }
-.intento p { overflow-wrap: anywhere; white-space: pre-wrap; }
-.respuesta-correcta { color: #15803d; }
-.respuesta-incorrecta, #estado-panel.error { color: #b91c1c; }
-.seleccionado { background: #eef4ff; }
-.revision-docente { display: grid; gap: .75rem; max-width: 42rem; margin: 1rem 0; }
-.revision-docente label { display: grid; gap: .4rem; color: #263b6c; }
-.revision-docente select, .revision-docente textarea { font: inherit; padding: .65rem; border: 1px solid #cbd5e1; border-radius: .65rem; color: #172554; background: white; }
-.revision-docente textarea { min-height: 5rem; resize: vertical; }
-.lectura-historial { margin: 1rem 0; border: 1px solid #dce6f5; border-radius: 1rem; overflow: hidden; }
-.lectura-historial > summary { cursor: pointer; padding: 1.15rem 1.25rem; background: linear-gradient(120deg,#eef4ff,#f8faff); color: #263b6c; display: flex; gap: 1rem; align-items: center; list-style: none; }
-.lectura-historial > summary::-webkit-details-marker { display: none; }
-.lectura-historial > summary::after { content: ''; flex: 0 0 .5rem; width: .5rem; height: .5rem; border-right: 2px solid #2861c7; border-bottom: 2px solid #2861c7; transform: rotate(45deg); margin: 0 .35rem 0 auto; }
-.lectura-historial[open] > summary::after { transform: rotate(225deg); }
-.lectura-historial > summary:hover { background: #eaf1ff; }
-.encabezado-lectura { flex: 1; min-width: 0; }
-.lectura-historial[open] { box-shadow: 0 4px 16px rgba(38,59,108,.04); }
-.titulo-lectura { display: inline-flex; align-items: center; gap: .65rem; vertical-align: middle; max-width: 90%; }
-.titulo-lectura h4 { margin: 0; font-size: 1rem; overflow-wrap: anywhere; }
-.icono-lectura { display: inline-block; flex: 0 0 1rem; height: 1.25rem; border: 2px solid #3478f6; border-radius: 2px 4px 4px 2px; border-left-width: 4px; box-shadow: inset 2px 0 #eef4ff; }
-.resumen-lectura { display: flex; align-items: center; gap: .5rem; flex-wrap: wrap; margin-top: .75rem; }
-.fecha-lectura { font-size: .8rem; color: #64748b; }
-.version-archivada { color: #64748b; background: #e8edf3; }
-.etiquetas-historial { display: flex; align-items: center; flex-wrap: wrap; gap: .6rem; margin-top: .75rem; }
-.etiqueta-historial, .resultado-intento { display: inline-block; border-radius: .5rem; padding: .3rem .6rem; font-size: .8rem; font-weight: 600; background: #e6efff; color: #2861c7; }
-.contenido-lectura { padding: .25rem 1.25rem 1rem; }
-.pregunta-historial { padding: 1rem 0; }
-.pregunta-historial + .pregunta-historial { border-top: 1px solid #edf1f7; }
-.pregunta-historial h5 { font-size: .95rem; color: #263b6c; margin: 0 0 .6rem; line-height: 1.5; overflow-wrap: anywhere; }
-.pregunta-historial .intento { border: 1px solid #edf1f7; border-radius: .75rem; padding: .9rem 1rem; margin-top: .75rem; }
-.intento .meta-intento { margin: 0 0 .5rem; }
-.intento .resultado-intento { margin: 0; }
-.estado-pendiente { background: #eef4ff; color: #2861c7; }
-.estado-correcto { background: #ecfdf3; color: #15803d; }
-.estado-refuerzo { background: #fef2f2; color: #b91c1c; }
-.respuesta-estudiante { color: #172554; line-height: 1.6; }
-.devolucion-historial { background: #f8fafc; border-left: 3px solid #93b7f6; border-radius: .4rem; padding: .75rem 1rem; color: #263b6c; font-size: .9rem; }
-.devolucion-historial p { margin: .4rem 0 0; line-height: 1.5; }
-.revision-docente { background: #f8faff; border: 1px solid #dce6f5; border-radius: .75rem; padding: 1rem; box-sizing: border-box; width: 100%; }
-.revision-docente > button { justify-self: start; }
-.intentos-anteriores { margin-top: .8rem; }
-.intentos-anteriores > summary { color: #2861c7; cursor: pointer; font-size: .85rem; padding: .5rem 0; }
-.historial-vacio { padding: 1rem; background: #f8fafc; border-radius: .75rem; color: #64748b; }
-summary:focus-visible, textarea:focus-visible { outline: 3px solid #4f46e5; outline-offset: -3px; }
-@media (max-width:640px) { .contenido-lectura { padding: .25rem .75rem .75rem; } .lectura-historial > summary { padding: .9rem .75rem; } .pregunta-historial .intento { padding: .75rem; } .revision-docente select, .revision-docente textarea { width: 100%; box-sizing: border-box; } }
-@media (max-width:640px) { .filtros-docente label { width: 100%; } th,td { padding: .6rem; } .paginacion { gap: .5rem; } }
+[hidden] {
+    display: none !important;
+}
+
+.student-dashboard>.panel,
+#detalle>.panel {
+    margin-bottom: 1.5rem;
+}
+
+.filtros-docente {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: end;
+    gap: 1rem;
+    margin: 1.25rem 0;
+}
+
+.filtros-docente label {
+    display: flex;
+    flex-direction: column;
+    gap: .4rem;
+    color: #263b6c;
+    font-size: .9rem;
+}
+
+.filtros-docente input,
+.filtros-docente select {
+    font: inherit;
+    padding: .65rem .8rem;
+    border: 1px solid #cbd5e1;
+    border-radius: .65rem;
+    background: white;
+    color: #172554;
+    max-width: 100%;
+    box-sizing: border-box;
+}
+
+.boton-docente,
+.boton-secundario {
+    font: inherit;
+    font-weight: 700;
+    padding: .65rem 1rem;
+    border-radius: .65rem;
+    cursor: pointer;
+    border: 0;
+}
+
+.boton-docente {
+    background: linear-gradient(135deg, #3478f6, #2362d9);
+    color: white;
+}
+
+.boton-secundario {
+    background: #e6efff;
+    color: #2861c7;
+}
+
+button:disabled {
+    opacity: .5;
+    cursor: default;
+}
+
+button:focus-visible,
+input:focus-visible,
+select:focus-visible {
+    outline: 3px solid #4f46e5;
+    outline-offset: 2px;
+}
+
+.tabla-contenedor {
+    overflow-x: auto;
+}
+
+table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: .9rem;
+}
+
+th {
+    text-align: left;
+    background: #eef4ff;
+    color: #263b6c;
+}
+
+th,
+td {
+    padding: .8rem;
+    border-bottom: 1px solid #edf1f7;
+}
+
+td {
+    overflow-wrap: anywhere;
+}
+
+.paginacion {
+    display: flex;
+    gap: 1rem;
+    justify-content: center;
+    align-items: center;
+    padding-top: 1rem;
+    font-size: .85rem;
+}
+
+.nota-docente,
+.meta-intento {
+    color: #64748b;
+    font-size: .85rem;
+}
+
+.intento {
+    border-bottom: 1px solid #edf1f7;
+    padding: 1rem 0;
+}
+
+.intento h4 {
+    margin: .5rem 0;
+}
+
+.intento p {
+    overflow-wrap: anywhere;
+    white-space: pre-wrap;
+}
+
+.respuesta-correcta {
+    color: #15803d;
+}
+
+.respuesta-incorrecta,
+#estado-panel.error {
+    color: #b91c1c;
+}
+
+.seleccionado {
+    background: #eef4ff;
+}
+
+.revision-docente {
+    display: grid;
+    gap: .75rem;
+    max-width: 42rem;
+    margin: 1rem 0;
+}
+
+.revision-docente label {
+    display: grid;
+    gap: .4rem;
+    color: #263b6c;
+}
+
+.revision-docente select,
+.revision-docente textarea {
+    font: inherit;
+    padding: .65rem;
+    border: 1px solid #cbd5e1;
+    border-radius: .65rem;
+    color: #172554;
+    background: white;
+}
+
+.revision-docente textarea {
+    min-height: 5rem;
+    resize: vertical;
+}
+
+.lectura-historial {
+    margin: 1rem 0;
+    border: 1px solid #dce6f5;
+    border-radius: 1rem;
+    overflow: hidden;
+}
+
+.lectura-historial>summary {
+    cursor: pointer;
+    padding: 1.15rem 1.25rem;
+    background: linear-gradient(120deg, #eef4ff, #f8faff);
+    color: #263b6c;
+    display: flex;
+    gap: 1rem;
+    align-items: center;
+    list-style: none;
+}
+
+.lectura-historial>summary::-webkit-details-marker {
+    display: none;
+}
+
+.lectura-historial>summary::after {
+    content: '';
+    flex: 0 0 .5rem;
+    width: .5rem;
+    height: .5rem;
+    border-right: 2px solid #2861c7;
+    border-bottom: 2px solid #2861c7;
+    transform: rotate(45deg);
+    margin: 0 .35rem 0 auto;
+}
+
+.lectura-historial[open]>summary::after {
+    transform: rotate(225deg);
+}
+
+.lectura-historial>summary:hover {
+    background: #eaf1ff;
+}
+
+.encabezado-lectura {
+    flex: 1;
+    min-width: 0;
+}
+
+.lectura-historial[open] {
+    box-shadow: 0 4px 16px rgba(38, 59, 108, .04);
+}
+
+.titulo-lectura {
+    display: inline-flex;
+    align-items: center;
+    gap: .65rem;
+    vertical-align: middle;
+    max-width: 90%;
+}
+
+.titulo-lectura h4 {
+    margin: 0;
+    font-size: 1rem;
+    overflow-wrap: anywhere;
+}
+
+.icono-lectura {
+    display: inline-block;
+    flex: 0 0 1rem;
+    height: 1.25rem;
+    border: 2px solid #3478f6;
+    border-radius: 2px 4px 4px 2px;
+    border-left-width: 4px;
+    box-shadow: inset 2px 0 #eef4ff;
+}
+
+.resumen-lectura {
+    display: flex;
+    align-items: center;
+    gap: .5rem;
+    flex-wrap: wrap;
+    margin-top: .75rem;
+}
+
+.fecha-lectura {
+    font-size: .8rem;
+    color: #64748b;
+}
+
+.version-archivada {
+    color: #64748b;
+    background: #e8edf3;
+}
+
+.etiquetas-historial {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: .6rem;
+    margin-top: .75rem;
+}
+
+.etiqueta-historial,
+.resultado-intento {
+    display: inline-block;
+    border-radius: .5rem;
+    padding: .3rem .6rem;
+    font-size: .8rem;
+    font-weight: 600;
+    background: #e6efff;
+    color: #2861c7;
+}
+
+.contenido-lectura {
+    padding: .25rem 1.25rem 1rem;
+}
+
+.pregunta-historial {
+    padding: 1rem 0;
+}
+
+.pregunta-historial+.pregunta-historial {
+    border-top: 1px solid #edf1f7;
+}
+
+.pregunta-historial h5 {
+    font-size: .95rem;
+    color: #263b6c;
+    margin: 0 0 .6rem;
+    line-height: 1.5;
+    overflow-wrap: anywhere;
+}
+
+.pregunta-historial .intento {
+    border: 1px solid #edf1f7;
+    border-radius: .75rem;
+    padding: .9rem 1rem;
+    margin-top: .75rem;
+}
+
+.intento .meta-intento {
+    margin: 0 0 .5rem;
+}
+
+.intento .resultado-intento {
+    margin: 0;
+}
+
+.estado-pendiente {
+    background: #eef4ff;
+    color: #2861c7;
+}
+
+.estado-correcto {
+    background: #ecfdf3;
+    color: #15803d;
+}
+
+.estado-refuerzo {
+    background: #fef2f2;
+    color: #b91c1c;
+}
+
+.respuesta-estudiante {
+    color: #172554;
+    line-height: 1.6;
+}
+
+.devolucion-historial {
+    background: #f8fafc;
+    border-left: 3px solid #93b7f6;
+    border-radius: .4rem;
+    padding: .75rem 1rem;
+    color: #263b6c;
+    font-size: .9rem;
+}
+
+.devolucion-historial p {
+    margin: .4rem 0 0;
+    line-height: 1.5;
+}
+
+.revision-docente {
+    background: #f8faff;
+    border: 1px solid #dce6f5;
+    border-radius: .75rem;
+    padding: 1rem;
+    box-sizing: border-box;
+    width: 100%;
+}
+
+.revision-docente>button {
+    justify-self: start;
+}
+
+.intentos-anteriores {
+    margin-top: .8rem;
+}
+
+.intentos-anteriores>summary {
+    color: #2861c7;
+    cursor: pointer;
+    font-size: .85rem;
+    padding: .5rem 0;
+}
+
+.historial-vacio {
+    padding: 1rem;
+    background: #f8fafc;
+    border-radius: .75rem;
+    color: #64748b;
+}
+
+summary:focus-visible,
+textarea:focus-visible {
+    outline: 3px solid #4f46e5;
+    outline-offset: -3px;
+}
+
+@media (max-width:640px) {
+    .contenido-lectura {
+        padding: .25rem .75rem .75rem;
+    }
+
+    .lectura-historial>summary {
+        padding: .9rem .75rem;
+    }
+
+    .pregunta-historial .intento {
+        padding: .75rem;
+    }
+
+    .revision-docente select,
+    .revision-docente textarea {
+        width: 100%;
+        box-sizing: border-box;
+    }
+}
+
+@media (max-width:640px) {
+    .filtros-docente label {
+        width: 100%;
+    }
+
+    th,
+    td {
+        padding: .6rem;
+    }
+
+    .paginacion {
+        gap: .5rem;
+    }
+}

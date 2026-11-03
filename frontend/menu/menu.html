@@ -1,74 +1,76 @@
 <!DOCTYPE html>
 <html lang="es">
+
 <head>
-<meta charset="UTF-8">
-<title>Tutor Inteligente - Menu</title>
-<link rel="stylesheet" href="/styles.css">
-<link rel="stylesheet" href="/header.css">
-<link rel="stylesheet" href="/menu.css">
+    <meta charset="UTF-8">
+    <title>Tutor Inteligente - Menu</title>
+    <link rel="stylesheet" href="/styles.css">
+    <link rel="stylesheet" href="/header.css">
+    <link rel="stylesheet" href="/menu.css">
 </head>
 
 <body>
-<div id="app-header"></div>
+    <div id="app-header"></div>
 
-<main class="main-content">
-    <div class="dashboard-grid">
-        <section class="text-list">
-            <div class="section-header">
-                <div>
-                    <h2>Lecturas para ti 📖</h2>
-                    <p>Elige un texto y pon a prueba tu comprensión</p>
-                </div>
-
-                <div class="level-filter-box">
-                    <label for="level-filter">Mostrar lecturas de:</label>
-                    <select id="level-filter">
-                        <option value="actual">Nivel actual</option>
-                    </select>
-                </div>
-            </div>
-            <div id="texts-container" class="texts-grid">
-                <!-- Los textos se cargarán aquí -->
-            </div>
-        </section>
-
-        <aside class="progress-panel">
-            <div class="progress-card">
-                <div class="panel-top">
-                    <div class="progress-icon">🏆</div>
+    <main class="main-content">
+        <div class="dashboard-grid">
+            <section class="text-list">
+                <div class="section-header">
                     <div>
-                        <h3>Tu desempeño</h3>
-                        <p>Aciertos del último intento por pregunta</p>
+                        <h2>Lecturas para ti 📖</h2>
+                        <p>Elige un texto y pon a prueba tu comprensión</p>
+                    </div>
+
+                    <div class="level-filter-box">
+                        <label for="level-filter">Mostrar lecturas de:</label>
+                        <select id="level-filter">
+                            <option value="actual">Nivel actual</option>
+                        </select>
                     </div>
                 </div>
+                <div id="texts-container" class="texts-grid">
+                    <!-- Los textos se cargarán aquí -->
+                </div>
+            </section>
 
-                <div class="panel-content">
-                    <div class="panel-row">
-                        <span class="panel-label">Nivel actual</span>
-                        <span id="level-badge" class="level-badge">Literal</span>
-                    </div>
-                    <div class="panel-row">
-                        <span class="panel-label">Aciertos</span>
-                        <span id="score-text">0 / 0 · 0%</span>
-                    </div>
-
-                    <div class="progress-bar-bg">
-                        <div id="progress-bar" class="progress-bar"></div>
+            <aside class="progress-panel">
+                <div class="progress-card">
+                    <div class="panel-top">
+                        <div class="progress-icon">🏆</div>
+                        <div>
+                            <h3>Tu desempeño</h3>
+                            <p>Aciertos del último intento por pregunta</p>
+                        </div>
                     </div>
 
-                    <div id="recommendation" class="recommendation">
-                        Responde una lectura para ver tu recomendación.
+                    <div class="panel-content">
+                        <div class="panel-row">
+                            <span class="panel-label">Nivel actual</span>
+                            <span id="level-badge" class="level-badge">Literal</span>
+                        </div>
+                        <div class="panel-row">
+                            <span class="panel-label">Aciertos</span>
+                            <span id="score-text">0 / 0 · 0%</span>
+                        </div>
+
+                        <div class="progress-bar-bg">
+                            <div id="progress-bar" class="progress-bar"></div>
+                        </div>
+
+                        <div id="recommendation" class="recommendation">
+                            Responde una lectura para ver tu recomendación.
+                        </div>
                     </div>
                 </div>
-            </div>
-        </aside>
-    </div>
-</main>
+            </aside>
+        </div>
+    </main>
 
-<script src="header.js"></script>
-<script src="/progress.js"></script>
-<script src="/reading-icons.js"></script>
-<script src="menu.js"></script>
+    <script src="header.js"></script>
+    <script src="/progress.js"></script>
+    <script src="/reading-icons.js"></script>
+    <script src="menu.js"></script>
 
 </body>
+
 </html>

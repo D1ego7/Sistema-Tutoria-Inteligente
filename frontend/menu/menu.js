@@ -1,4 +1,4 @@
-document.addEventListener("DOMContentLoaded", function() {
+document.addEventListener("DOMContentLoaded", function () {
     const token = localStorage.getItem("token");
     const user = JSON.parse(localStorage.getItem("user") || "{}");
 
@@ -17,7 +17,7 @@ document.addEventListener("DOMContentLoaded", function() {
 
     const logoutBtn = document.getElementById("logout-btn");
     if (logoutBtn) {
-        logoutBtn.addEventListener("click", function() {
+        logoutBtn.addEventListener("click", function () {
             localStorage.removeItem("token");
             localStorage.removeItem("user");
             window.location.href = "/";
@@ -141,20 +141,20 @@ function displayTexts(texts) {
         const emoji = getEmojiForText(text.titulo);
         const readingTime = calculateReadingTime(text.contenido);
         const isCompleted = text.completado === true;
-        
+
         const card = document.createElement("div");
         card.className = `text-card ${isCompleted ? 'text-card-completed' : ''}`;
-        
-        const buttonText = isCompleted 
-            ? '✅ Completado' 
+
+        const buttonText = isCompleted
+            ? '✅ Completado'
             : 'Leer y responder →';
-        const buttonClass = isCompleted 
-            ? 'btn-read btn-completed' 
+        const buttonClass = isCompleted
+            ? 'btn-read btn-completed'
             : 'btn-read';
-        const buttonOnclick = isCompleted 
-            ? `selectText(${text.id_texto})` 
+        const buttonOnclick = isCompleted
+            ? `selectText(${text.id_texto})`
             : `selectText(${text.id_texto})`;
-        
+
         card.innerHTML = `
             <div class="text-card-top">
                 <div class="text-emoji">${emoji}</div>

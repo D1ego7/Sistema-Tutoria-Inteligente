@@ -1,4 +1,4 @@
-document.addEventListener("DOMContentLoaded", async function() {
+document.addEventListener("DOMContentLoaded", async function () {
     const headerContainer = document.getElementById("app-header");
     if (!headerContainer) return;
 
@@ -24,7 +24,7 @@ document.addEventListener("DOMContentLoaded", async function() {
 
         const logoutBtn = document.getElementById("logout-btn");
         if (logoutBtn) {
-            logoutBtn.addEventListener("click", function() {
+            logoutBtn.addEventListener("click", function () {
                 localStorage.removeItem("token");
                 localStorage.removeItem("user");
                 window.location.href = "/";

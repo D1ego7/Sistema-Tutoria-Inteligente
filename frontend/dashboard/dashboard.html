@@ -1,71 +1,131 @@
 <!DOCTYPE html>
 <html lang="es">
+
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Tutor Inteligente - Inicio</title>
-<link rel="stylesheet" href="/styles.css">
-<link rel="stylesheet" href="/header.css">
-<link rel="stylesheet" href="/dashboard.css">
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Tutor Inteligente - Inicio</title>
+    <link rel="stylesheet" href="/styles.css">
+    <link rel="stylesheet" href="/header.css">
+    <link rel="stylesheet" href="/dashboard.css">
 </head>
+
 <body>
-<div id="app-header"></div>
+    <div id="app-header"></div>
 
-<main class="student-dashboard">
-    <section class="welcome-section">
-        <div>
-            <p class="eyebrow">Tu espacio de aprendizaje</p>
-            <h2>¡Bienvenido, <span id="first-name">Estudiante</span>!</h2>
-            <p class="welcome-copy">Sigue fortaleciendo tu comprensión lectora con actividades personalizadas.</p>
-            <a class="primary-action" href="/menu.html">▶&nbsp; Continuar aprendiendo <span>→</span></a>
-        </div>
-        <div class="welcome-illustration" aria-hidden="true">
-            <div class="speech-bubble">¡Leer te lleva<br>a grandes lugares!</div>
-            <div class="book-stack"><span>★</span><i></i><b></b><em></em></div>
-            <p>Pequeños pasos,<br>grandes logros ♡</p>
-        </div>
-    </section>
+    <main class="student-dashboard">
+        <section class="welcome-section">
+            <div>
+                <p class="eyebrow">Tu espacio de aprendizaje</p>
+                <h2>¡Bienvenido, <span id="first-name">Estudiante</span>!</h2>
+                <p class="welcome-copy">Sigue fortaleciendo tu comprensión lectora con actividades personalizadas.</p>
+                <a class="primary-action" href="/menu.html">▶&nbsp; Continuar aprendiendo <span>→</span></a>
+            </div>
+            <div class="welcome-illustration" aria-hidden="true">
+                <div class="speech-bubble">¡Leer te lleva<br>a grandes lugares!</div>
+                <div class="book-stack"><span>★</span><i></i><b></b><em></em></div>
+                <p>Pequeños pasos,<br>grandes logros ♡</p>
+            </div>
+        </section>
 
-    <section class="summary-grid" aria-label="Resumen del estudiante">
-        <article class="summary-card"><div class="summary-icon violet">▥</div><div><p>Nivel actual</p><strong id="summary-level">-</strong></div><span>›</span></article>
-        <article class="summary-card"><div class="summary-icon green">◎</div><div><p>Aciertos promedio</p><strong id="summary-accuracy">0%</strong></div><span>›</span></article>
-        <article class="summary-card"><div class="summary-icon blue">▣</div><div><p>Lecturas completadas</p><strong id="summary-completed">0</strong></div><span>›</span></article>
-        <article class="summary-card"><div class="summary-icon orange">♨</div><div><p>Racha de estudio</p><strong id="summary-streak">0 días</strong></div><span>›</span></article>
-    </section>
+        <section class="summary-grid" aria-label="Resumen del estudiante">
+            <article class="summary-card">
+                <div class="summary-icon violet">▥</div>
+                <div>
+                    <p>Nivel actual</p><strong id="summary-level">-</strong>
+                </div><span>›</span>
+            </article>
+            <article class="summary-card">
+                <div class="summary-icon green">◎</div>
+                <div>
+                    <p>Aciertos promedio</p><strong id="summary-accuracy">0%</strong>
+                </div><span>›</span>
+            </article>
+            <article class="summary-card">
+                <div class="summary-icon blue">▣</div>
+                <div>
+                    <p>Lecturas completadas</p><strong id="summary-completed">0</strong>
+                </div><span>›</span>
+            </article>
+            <article class="summary-card">
+                <div class="summary-icon orange">♨</div>
+                <div>
+                    <p>Racha de estudio</p><strong id="summary-streak">0 días</strong>
+                </div><span>›</span>
+            </article>
+        </section>
 
-    <section class="dashboard-grid">
-        <article class="panel progress-panel">
-            <div class="panel-heading"><div class="panel-icon violet">↗</div><div><h3>Tu desempeño</h3><p>Aciertos según el último intento de cada pregunta</p></div><span id="level-badge" class="level-badge">-</span></div>
-            <div class="goal-row"><span>Porcentaje de aciertos</span><strong id="progress-percent">0%</strong></div>
-            <div class="progress-bar-bg"><div id="progress-bar" class="progress-bar"></div></div>
-            <div id="recommendation" class="progress-message">Responde una lectura para ver tu recomendación.</div>
-        </article>
+        <section class="dashboard-grid">
+            <article class="panel progress-panel">
+                <div class="panel-heading">
+                    <div class="panel-icon violet">↗</div>
+                    <div>
+                        <h3>Tu desempeño</h3>
+                        <p>Aciertos según el último intento de cada pregunta</p>
+                    </div><span id="level-badge" class="level-badge">-</span>
+                </div>
+                <div class="goal-row"><span>Porcentaje de aciertos</span><strong id="progress-percent">0%</strong></div>
+                <div class="progress-bar-bg">
+                    <div id="progress-bar" class="progress-bar"></div>
+                </div>
+                <div id="recommendation" class="progress-message">Responde una lectura para ver tu recomendación.</div>
+            </article>
 
-        <article class="panel tutor-panel">
-            <div class="panel-heading"><div class="panel-icon violet">⌁</div><div><h3>Recomendación del tutor</h3><p>Consejo personalizado para ti</p></div></div>
-            <div id="tutor-recommendation" class="tutor-message">Responde actividades para recibir un consejo personalizado.</div>
-            <div class="robot-mark" aria-hidden="true">◡<small>• •</small></div>
-        </article>
-    </section>
+            <article class="panel tutor-panel">
+                <div class="panel-heading">
+                    <div class="panel-icon violet">⌁</div>
+                    <div>
+                        <h3>Recomendación del tutor</h3>
+                        <p>Consejo personalizado para ti</p>
+                    </div>
+                </div>
+                <div id="tutor-recommendation" class="tutor-message">Responde actividades para recibir un consejo
+                    personalizado.</div>
+                <div class="robot-mark" aria-hidden="true">◡<small>• •</small></div>
+            </article>
+        </section>
 
-    <section class="lower-grid">
-        <article class="panel recommended-panel">
-            <div class="panel-heading"><div class="panel-icon blue">▣</div><div><h3>Siguiente lectura recomendada</h3><p>Continúa tu aprendizaje</p></div></div>
-            <div id="next-reading"><p class="empty-state">No hay lecturas disponibles para tu nivel actual.</p></div>
-        </article>
-        <article class="panel activity-panel">
-            <div class="panel-heading"><div class="panel-icon blue">◷</div><div><h3>Actividad reciente</h3><p>Tus últimas lecturas</p></div></div>
-            <div id="recent-activity"><p class="empty-state">Aún no tienes lecturas registradas.</p></div>
-        </article>
-        <article class="panel quick-panel">
-            <div class="panel-heading"><div class="panel-icon violet">ϟ</div><div><h3>Acciones rápidas</h3><p>Explora y sigue aprendiendo</p></div></div>
-            <a class="quick-action primary" href="/menu.html">▣ <span>Ir a lecturas</span> →</a>
-        </article>
-    </section>
-</main>
+        <section class="lower-grid">
+            <article class="panel recommended-panel">
+                <div class="panel-heading">
+                    <div class="panel-icon blue">▣</div>
+                    <div>
+                        <h3>Siguiente lectura recomendada</h3>
+                        <p>Continúa tu aprendizaje</p>
+                    </div>
+                </div>
+                <div id="next-reading">
+                    <p class="empty-state">No hay lecturas disponibles para tu nivel actual.</p>
+                </div>
+            </article>
+            <article class="panel activity-panel">
+                <div class="panel-heading">
+                    <div class="panel-icon blue">◷</div>
+                    <div>
+                        <h3>Actividad reciente</h3>
+                        <p>Tus últimas lecturas</p>
+                    </div>
+                </div>
+                <div id="recent-activity">
+                    <p class="empty-state">Aún no tienes lecturas registradas.</p>
+                </div>
+            </article>
+            <article class="panel quick-panel">
+                <div class="panel-heading">
+                    <div class="panel-icon violet">ϟ</div>
+                    <div>
+                        <h3>Acciones rápidas</h3>
+                        <p>Explora y sigue aprendiendo</p>
+                    </div>
+                </div>
+                <a class="quick-action primary" href="/menu.html">▣ <span>Ir a lecturas</span> →</a>
+            </article>
+        </section>
+    </main>
 
-<script src="/header.js"></script>
-<script src="/progress.js"></script>
-<script src="/dashboard.js"></script>
+    <script src="/header.js"></script>
+    <script src="/progress.js"></script>
+    <script src="/dashboard.js"></script>
 </body>
+
 </html>

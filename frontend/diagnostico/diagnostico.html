@@ -1,37 +1,39 @@
 <!DOCTYPE html>
 <html lang="es">
+
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Diagnóstico inicial</title>
-<link rel="stylesheet" href="/styles.css">
-<link rel="stylesheet" href="/header.css">
-<link rel="stylesheet" href="/diagnostico.css">
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Diagnóstico inicial</title>
+    <link rel="stylesheet" href="/styles.css">
+    <link rel="stylesheet" href="/header.css">
+    <link rel="stylesheet" href="/diagnostico.css">
 </head>
 
 <body>
-<div id="app-header"></div>
+    <div id="app-header"></div>
 
-<main class="main-content">
-    <div class="reading-card">
-        <div class="reading-hero">
-            <div class="reading-emoji">🧠</div>
-            <div>
-                <h2>Diagnóstico inicial de comprensión lectora</h2>
-                <p>Dos lecturas para conocer tu punto de partida.</p>
+    <main class="main-content">
+        <div class="reading-card">
+            <div class="reading-hero">
+                <div class="reading-emoji">🧠</div>
+                <div>
+                    <h2>Diagnóstico inicial de comprensión lectora</h2>
+                    <p>Dos lecturas para conocer tu punto de partida.</p>
+                </div>
+            </div>
+
+            <div class="reading-body">
+                <p id="diagnostic-instructions" class="diagnostic-info">Cargando las lecturas…</p>
+                <div id="diagnostic-readings"></div>
+                <p id="diagnostic-status" role="status" aria-live="polite"></p>
+                <button id="submit-diagnostic" type="button" disabled>✅ Finalizar diagnóstico</button>
             </div>
         </div>
+    </main>
 
-        <div class="reading-body">
-            <p id="diagnostic-instructions" class="diagnostic-info">Cargando las lecturas…</p>
-            <div id="diagnostic-readings"></div>
-            <p id="diagnostic-status" role="status" aria-live="polite"></p>
-            <button id="submit-diagnostic" type="button" disabled>✅ Finalizar diagnóstico</button>
-        </div>
-    </div>
-</main>
-
-<script src="header.js"></script>
-<script src="diagnostico.js"></script>
+    <script src="header.js"></script>
+    <script src="diagnostico.js"></script>
 </body>
+
 </html>
